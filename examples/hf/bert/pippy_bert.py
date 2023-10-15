@@ -7,7 +7,7 @@ import torch
 from transformers import BertLMHeadModel, BertConfig
 
 import pippy
-import pippy.fx
+import torch.fx
 from pippy import run_pippy
 from pippy.microbatch import sum_reducer, TensorChunkSpec
 from pippy.events import EventsContext
@@ -15,7 +15,7 @@ from pippy.hf import PiPPyHFTracer
 from pippy.visualizer import events_to_json
 
 
-pippy.fx.Tracer.proxy_buffer_attributes = True
+torch.fx.Tracer.proxy_buffer_attributes = True
 
 
 def get_number_of_params(model):

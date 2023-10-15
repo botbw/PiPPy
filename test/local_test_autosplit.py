@@ -3,7 +3,7 @@ import argparse
 import os
 import unittest
 
-import pippy.fx
+import torch.fx
 import pippy.ModelSplit
 
 import torch
@@ -26,7 +26,7 @@ schedules = {
     "Interleaved1F1B": PipelineDriverInterleaved1F1B,
 }
 
-pippy.fx.Tracer.proxy_buffer_attributes = True
+torch.fx.Tracer.proxy_buffer_attributes = True
 
 MULTI_USE_PARAM_CONFIG = MultiUseParameterConfig.TRANSMIT
 
@@ -62,7 +62,7 @@ def inspect_split_module(
     pipe: Pipe,
     expected_stages: int = -1,
 ):
-    gm: pippy.fx.GraphModule = pipe.split_gm
+    gm: torch.fx.GraphModule = pipe.split_gm
     # Check returned number of stages
     nstages = len(list(gm.children()))
     if expected_stages > 0:

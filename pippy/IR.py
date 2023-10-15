@@ -11,14 +11,14 @@ import torch
 import torch.fx as torch_fx
 from packaging import version
 
-import pippy.fx
+import torch.fx
 from pippy.backward import (
     _null_coalesce_accumulate,
     stage_backward,
     sync_barrier,
 )
-from pippy.fx.passes import shape_prop
-from pippy.fx.passes.split_module import split_module
+from torch.fx.passes import shape_prop
+from torch.fx.passes.split_module import split_module
 from pippy.LoadModule import load_checkpoint
 
 # Because split_module with 4 arguments is available only in PT 1.12+
@@ -43,7 +43,7 @@ def _find_loss_from_output_and_spec(output_val, spec_val):
     if spec_val is False:
         return None
     if spec_val is True:
-        if not isinstance(output_val, pippy.fx.Node):
+        if not isinstance(output_val, torch.fx.Node):
             raise RuntimeError(
                 f"Loss spec must specify a dynamic value but got {output_val}"
             )
@@ -95,7 +95,7 @@ def _find_loss_from_output_and_spec(output_val, spec_val):
 
 
 def _find_loss_output(
-    mod: torch.nn.Module, g: pippy.fx.Graph, output_loss_value_spec
+    mod: torch.nn.Module, g: torch.fx.Graph, output_loss_value_spec
 ):
     output_nodes = [n for n in g.nodes if n.op == "output"]
     assert len(output_nodes) == 1
@@ -127,13 +127,13 @@ def _find_loss_output(
 
 
 def _insert_stage_symbolic_backward(
-    g: pippy.fx.Graph,
-    loss_node: pippy.fx.Node,
-    output_node: pippy.fx.Node,
+    g: torch.fx.Graph,
+    loss_node: torch.fx.Node,
+    output_node: torch.fx.Node,
     return_to_0: bool,
 ):
     # Collect metadata about tuple output values. TODO: move this to split_module or FX IR
-    tuples: Dict[pippy.fx.Node, Tuple] = {}
+    tuples: Dict[torch.fx.Node, Tuple] = {}
     for node in reversed(g.nodes):
         if node.op == "call_function":
             # In the forward pass, only emit placeholder, module calls, and
@@ -172,7 +172,7 @@ def _insert_stage_symbolic_backward(
     # We will only emit backward operations for nodes that can contribute
     # to the specified loss value.
     live_nodes = {loss_node: None}
-    val_to_grad: Dict[pippy.fx.Node, Optional[pippy.fx.Node]] = {
+    val_to_grad: Dict[torch.fx.Node, Optional[torch.fx.Node]] = {
         loss_node: None
     }
 
@@ -195,11 +195,11 @@ def _insert_stage_symbolic_backward(
             def add_to_live_nodes(n):
                 live_nodes.setdefault(n, None)
 
-            pippy.fx.node.map_arg(node.args, add_to_live_nodes)
-            pippy.fx.node.map_arg(node.kwargs, add_to_live_nodes)
+            torch.fx.node.map_arg(node.args, add_to_live_nodes)
+            torch.fx.node.map_arg(node.kwargs, add_to_live_nodes)
             if node.op == "call_module":
                 output_grads: Union[
-                    Tuple[Optional[pippy.fx.Node], ...], Optional[pippy.fx.Node]
+                    Tuple[Optional[torch.fx.Node], ...], Optional[torch.fx.Node]
                 ]
                 if node in tuples:
                     stage_output = tuples[node]
@@ -236,7 +236,7 @@ def _insert_stage_symbolic_backward(
                 ] = f"{grad_call} for stage {node.format_node()}"
                 grad_call.kwargs = kwargs_copy
 
-                grad_call_proxy = pippy.fx.Proxy(grad_call)
+                grad_call_proxy = torch.fx.Proxy(grad_call)
                 grads, barrier_token = (
                     grad_call_proxy[0].node,
                     grad_call_proxy[1].node,
@@ -245,7 +245,7 @@ def _insert_stage_symbolic_backward(
                 last_grads = grads
 
                 input_nodes = list(node.all_input_nodes)
-                grads_proxy = pippy.fx.Proxy(grads)
+                grads_proxy = torch.fx.Proxy(grads)
                 for i, input_node in enumerate(input_nodes):
                     assign_or_accumulate_grad(input_node, grads_proxy[i].node)
 
@@ -363,7 +363,7 @@ MultiUseParamSpec = Union[
 ]
 
 
-class DetachExecutor(pippy.fx.Interpreter):
+class DetachExecutor(torch.fx.Interpreter):
     """
     Special interpreter to run the split_gm in testing that detaches all inputs to
     a module invocation. This is needed so that the values at the boundary are
@@ -392,10 +392,10 @@ class DetachExecutor(pippy.fx.Interpreter):
         def dont_traverse_size(a):
             return type(a) != torch.Size
 
-        args = pippy.fx.node.map_aggregate(
+        args = torch.fx.node.map_aggregate(
             args, detach_tensors, dont_traverse_size
         )
-        kwargs = pippy.fx.node.map_aggregate(
+        kwargs = torch.fx.node.map_aggregate(
             kwargs, detach_tensors, dont_traverse_size
         )
 
@@ -422,13 +422,13 @@ class _LinearNodeList:
     def __init__(self, node_list):
         self.serialize_node_list = []
         for node in node_list:
-            node_args = pippy.fx.node.map_arg(
+            node_args = torch.fx.node.map_arg(
                 node.args, lambda n: _NodeReference(n.name)
             )
-            node_kwargs = pippy.fx.node.map_arg(
+            node_kwargs = torch.fx.node.map_arg(
                 node.kwargs, lambda n: _NodeReference(n.name)
             )
-            serialize_node = pippy.fx.Node(
+            serialize_node = torch.fx.Node(
                 graph=None,
                 name=node.name,
                 op=node.op,
@@ -441,9 +441,9 @@ class _LinearNodeList:
             self.serialize_node_list.append(serialize_node)
 
     def to_graph(self):
-        graph = pippy.fx.Graph()
+        graph = torch.fx.Graph()
 
-        ref_str_to_node: Dict[str, pippy.fx.Node] = {}
+        ref_str_to_node: Dict[str, torch.fx.Node] = {}
 
         def ref_to_node(arg):
             if isinstance(arg, _NodeReference):
@@ -452,8 +452,8 @@ class _LinearNodeList:
                 return arg
 
         for node in self.serialize_node_list:
-            node_args = pippy.fx.node.map_aggregate(node.args, ref_to_node)
-            node_kwargs = pippy.fx.node.map_aggregate(node.kwargs, ref_to_node)
+            node_args = torch.fx.node.map_aggregate(node.args, ref_to_node)
+            node_kwargs = torch.fx.node.map_aggregate(node.kwargs, ref_to_node)
             deser_node = graph.create_node(
                 op=node.op,
                 target=node.target,
@@ -486,7 +486,7 @@ def _direct_serialization_deserialize(body, nodes):
 
     dummy = DummyModule(body)
 
-    return pippy.fx.GraphModule(dummy, nodes.to_graph())
+    return torch.fx.GraphModule(dummy, nodes.to_graph())
 
 
 def _direct_serialization_reduce(self):
@@ -538,7 +538,7 @@ class QualnameMapMixin:
 class Pipe(QualnameMapMixin, torch.nn.Module):
     def __init__(
         self,
-        split_gm: pippy.fx.GraphModule,
+        split_gm: torch.fx.GraphModule,
         qualname_mapping: Dict[str, str],
         num_stages: int,
         has_loss_and_backward: bool,
@@ -547,7 +547,7 @@ class Pipe(QualnameMapMixin, torch.nn.Module):
         # TODO: is there a way not to hard wire init?
         QualnameMapMixin.__init__(self, qualname_mapping)
         torch.nn.Module.__init__(self)
-        self.split_gm: pippy.fx.GraphModule = split_gm
+        self.split_gm: torch.fx.GraphModule = split_gm
         self.executor: DetachExecutor = DetachExecutor(self.split_gm)
         self.num_stages: int = num_stages
         self.has_loss_and_backwards = has_loss_and_backward
@@ -675,7 +675,7 @@ class Pipe(QualnameMapMixin, torch.nn.Module):
         return res
 
     @staticmethod
-    def _number_and_count_forward_stages(gm: pippy.fx.GraphModule):
+    def _number_and_count_forward_stages(gm: torch.fx.GraphModule):
         num_stages = 0
         found_idxs: Dict[int, None] = {}
         for node in gm.graph.nodes:
@@ -692,7 +692,7 @@ class Pipe(QualnameMapMixin, torch.nn.Module):
     @staticmethod
     def _from_traced(
         mod: torch.nn.Module,
-        traced: pippy.fx.GraphModule,
+        traced: torch.fx.GraphModule,
         multi_use_param_spec: Optional[MultiUseParamSpec] = None,
         output_loss_value_spec=None,
         return_to_0: bool = True,
@@ -709,7 +709,7 @@ class Pipe(QualnameMapMixin, torch.nn.Module):
         # Deduplicate `get_attr` nodes that refer to the same parameter . Downstream code for moving
         # parameters relies on the invariant that parameter accesses happen once. This is not necessarily
         # the case (especially with custom tracers), so fix that up here.
-        get_attr_nodes: Dict[str, pippy.fx.Node] = {}
+        get_attr_nodes: Dict[str, torch.fx.Node] = {}
         for node in traced.graph.nodes:
             if node.op == "get_attr":
                 get_attr_nodes.setdefault(node.target, node)
@@ -734,7 +734,7 @@ class Pipe(QualnameMapMixin, torch.nn.Module):
 
         part_idx = 0
 
-        def split_callback(n: pippy.fx.Node):
+        def split_callback(n: torch.fx.Node):
             nonlocal part_idx
             if (n.op, n.target) == ("call_function", pipe_split):
                 part_idx += 1
@@ -750,7 +750,7 @@ class Pipe(QualnameMapMixin, torch.nn.Module):
 
         # peephole to remove pipe_split
         for submodule in split.modules():
-            if isinstance(submodule, pippy.fx.GraphModule):
+            if isinstance(submodule, torch.fx.GraphModule):
                 for node in submodule.graph.nodes:
                     if (node.op, node.target) == ("call_function", pipe_split):
                         submodule.graph.erase_node(node)
@@ -777,7 +777,7 @@ class Pipe(QualnameMapMixin, torch.nn.Module):
                 f"Expected '{node.target}' to be {torch.Tensor} but got {type(param_val)}."
                 + (
                     f" It might happen if module '{node.target}' was passed to some 'leaf function'"
-                    f"(see https://pytorch.org/docs/stable/fx.html#pippy.fx.wrap). Please inspect "
+                    f"(see https://pytorch.org/docs/stable/fx.html#torch.fx.wrap). Please inspect "
                     f"usages of '{node.target}' in the traced graph."
                     if isinstance(param_val, torch.nn.Module)
                     else ""
@@ -871,7 +871,7 @@ class Pipe(QualnameMapMixin, torch.nn.Module):
                 )
 
         # TODO: do we maintain the invariant that `Node.users` is topologically ordered? I don't think so
-        node_to_first_user: Dict[pippy.fx.Node, pippy.fx.Node] = {}
+        node_to_first_user: Dict[torch.fx.Node, torch.fx.Node] = {}
         for node in split.graph.nodes:
             for input in node.all_input_nodes:
                 if input not in node_to_first_user:
@@ -1035,7 +1035,7 @@ class Pipe(QualnameMapMixin, torch.nn.Module):
         output_loss_value_spec=None,
         deep_copy_module=False,
         split_policy: Optional[
-            Callable[[pippy.fx.GraphModule], pippy.fx.GraphModule]
+            Callable[[torch.fx.GraphModule], torch.fx.GraphModule]
         ] = None,
         return_to_0: bool = True,
         **kwargs,
@@ -1044,7 +1044,7 @@ class Pipe(QualnameMapMixin, torch.nn.Module):
 
         global _pipeline_tracer
         old__pipeline_tracer = _pipeline_tracer
-        _pipeline_tracer = tracer or pippy.fx.Tracer()
+        _pipeline_tracer = tracer or torch.fx.Tracer()
         try:
             # TODO: tracing policy
             if deep_copy_module:
@@ -1053,13 +1053,13 @@ class Pipe(QualnameMapMixin, torch.nn.Module):
                 )  # because further pipe building activities can modify mod
             graph = _pipeline_tracer.trace(mod, **kwargs)
             if isinstance(graph, torch_fx.Graph):
-                # HACK to convert torch.fx.Graph to pippy.fx.Graph
-                g_new = pippy.fx.Graph()
-                val_map: Dict[pippy.fx.Node, pippy.fx.Node] = {}
+                # HACK to convert torch.fx.Graph to torch.fx.Graph
+                g_new = torch.fx.Graph()
+                val_map: Dict[torch.fx.Node, torch.fx.Node] = {}
                 out = g_new.graph_copy(graph, val_map, False)
                 g_new.output(out)
 
-                # `pippy.fx.map_arg` doesn't work on torch.fx.Node instances;
+                # `torch.fx.map_arg` doesn't work on torch.fx.Node instances;
                 # do it here
                 def remap_vals(n):
                     return val_map[n]
@@ -1069,7 +1069,7 @@ class Pipe(QualnameMapMixin, torch.nn.Module):
                     node.kwargs = torch_fx.map_arg(node.kwargs, remap_vals)
                 graph = g_new
 
-            traced = pippy.fx.GraphModule(mod, graph)
+            traced = torch.fx.GraphModule(mod, graph)
         finally:
             _pipeline_tracer = old__pipeline_tracer
 
@@ -1200,12 +1200,12 @@ def annotate_split_points(
 
 class PiPPyShapeProp(shape_prop.ShapeProp):
     def __init__(
-        self, module: pippy.fx.GraphModule, garbage_collect_values: bool = True
+        self, module: torch.fx.GraphModule, garbage_collect_values: bool = True
     ):
         super().__init__(module, garbage_collect_values)
         self.stop_prop = False
 
-    def run_node(self, n: pippy.fx.Node) -> Any:
+    def run_node(self, n: torch.fx.Node) -> Any:
         if (n.op, n.target) == ("call_function", stage_backward):
             self.stop_prop = True
 

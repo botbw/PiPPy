@@ -7,7 +7,7 @@ from collections import defaultdict
 from functools import reduce
 from typing import Any, Dict, List
 
-import pippy.fx
+import torch.fx
 
 import torch
 import torch.nn as nn
@@ -39,10 +39,10 @@ schedules = {
     "Interleaved1F1B": PipelineDriverInterleaved1F1B,
 }
 
-pippy.fx.Tracer.proxy_buffer_attributes = True
+torch.fx.Tracer.proxy_buffer_attributes = True
 
 
-@pippy.fx.wrap
+@torch.fx.wrap
 def sleep(x, t=1.0):
     time.sleep(t)
     return x
@@ -94,7 +94,7 @@ class MyLinearFunction(Function):
         return grad_input, grad_weight, grad_bias
 
 
-@pippy.fx.wrap
+@torch.fx.wrap
 def linear(input, weight, bias):
     return MyLinearFunction.apply(input, weight, bias)
 

@@ -25,14 +25,14 @@ from math import sqrt
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Union
 
 import pippy
-import pippy.fx._pytree as fx_pytree
+import torch.fx._pytree as fx_pytree
 
 import torch
 import torch.nn.utils._stateless as _stateless
 import torch.utils._pytree as pytree
 
 from fx.named_tup import MyNamedTup
-from pippy.fx import (
+from torch.fx import (
     CodeGen,
     Graph,
     GraphModule,
@@ -45,16 +45,16 @@ from pippy.fx import (
     Transformer,
     wrap,
 )
-from pippy.fx._compatibility import (
+from torch.fx._compatibility import (
     _BACK_COMPAT_OBJECTS,
     _MARKED_WITH_COMATIBLITY,
 )
-from pippy.fx.experimental.rewriter import RewritingTracer
-from pippy.fx.immutable_collections import immutable_dict, immutable_list
-from pippy.fx.node import _format_arg, Argument, Target
-from pippy.fx.operator_schemas import get_signature_for_torch_op
-from pippy.fx.passes import shape_prop
-from pippy.fx.proxy import TraceError
+from torch.fx.experimental.rewriter import RewritingTracer
+from torch.fx.immutable_collections import immutable_dict, immutable_list
+from torch.fx.node import _format_arg, Argument, Target
+from torch.fx.operator_schemas import get_signature_for_torch_op
+from torch.fx.passes import shape_prop
+from torch.fx.proxy import TraceError
 from torch.multiprocessing import Process
 from torch.testing import FileCheck
 from torch.testing._internal.common_device_type import (
@@ -193,9 +193,9 @@ class TestFX(JitTestCase):
         # Checking for mutable operations whil tracing is feature flagged
         # Enable it in testing but not by default
         self.orig_tracer_mutable_flag = (
-            pippy.fx.proxy.TracerBase.check_mutable_operations
+            torch.fx.proxy.TracerBase.check_mutable_operations
         )
-        pippy.fx.proxy.TracerBase.check_mutable_operations = True
+        torch.fx.proxy.TracerBase.check_mutable_operations = True
 
         if not (IS_FBCODE or IS_WINDOWS or IS_MACOS):
             lib_file_path = find_library_location("libtorchbind_test.so")
@@ -203,7 +203,7 @@ class TestFX(JitTestCase):
 
     def tearDown(self):
         super().tearDown()
-        pippy.fx.proxy.TracerBase.check_mutable_operations = (
+        torch.fx.proxy.TracerBase.check_mutable_operations = (
             self.orig_tracer_mutable_flag
         )
 
@@ -282,7 +282,7 @@ class TestFX(JitTestCase):
         torch.testing.assert_allclose(new_instance(x), torch.relu(x))
 
     def test_custom_import(self):
-        graph = pippy.fx.Graph()
+        graph = torch.fx.Graph()
         a = graph.placeholder("x")
         b = graph.placeholder("y")
         c = graph.call_function(a_non_torch_leaf, (a, b))
@@ -492,7 +492,7 @@ class TestFX(JitTestCase):
         self.assertIs(wrapped_via_decorator, real_wrapped_via_decorator)
         self.assertFalse(hasattr(wrapped_via_decorator, "__fx_already_patched"))
 
-        transformed = pippy.fx.Transformer(m).transform()
+        transformed = torch.fx.Transformer(m).transform()
         self.assertIn("wrapped_via_decorator", transformed.code)
         self.assertEqual(transformed(0), 1)
         self.assertIs(wrapped_via_decorator, real_wrapped_via_decorator)
@@ -542,7 +542,7 @@ class TestFX(JitTestCase):
 
         m = M()
         g = symbolic_trace(m).graph
-        new_g = pippy.fx.Graph()
+        new_g = torch.fx.Graph()
         val_map: Dict[Node, Node] = {}
         output_val = new_g.graph_copy(g, val_map)
         t = Proxy(output_val)
@@ -558,7 +558,7 @@ class TestFX(JitTestCase):
                 return x if val is None else x + val
 
         f = Foo()
-        traced = pippy.fx.symbolic_trace(f, concrete_args={"val": None})
+        traced = torch.fx.symbolic_trace(f, concrete_args={"val": None})
         with self.assertRaisesRegex(
             AssertionError, "val has been specialized to have value None"
         ):
@@ -611,7 +611,7 @@ class TestFX(JitTestCase):
 
         m = M()
         g = symbolic_trace(m).graph
-        new_g = pippy.fx.Graph()
+        new_g = torch.fx.Graph()
         val_map: Dict[Node, Node] = {}
         output_val = new_g.graph_copy(g, val_map)
         t = Proxy(output_val)
@@ -628,7 +628,7 @@ class TestFX(JitTestCase):
             def forward(self, a, b):
                 return a + b
 
-        tracer = pippy.fx.Tracer()
+        tracer = torch.fx.Tracer()
         tracer.record_stack_traces = True
 
         graph = tracer.trace(M())
@@ -650,7 +650,7 @@ class TestFX(JitTestCase):
             def forward(self, a, b):
                 return a + b
 
-        tracer = pippy.fx.Tracer()
+        tracer = torch.fx.Tracer()
         tracer.record_stack_traces = True
 
         graph = tracer.trace(M())
@@ -665,17 +665,17 @@ class TestFX(JitTestCase):
             assert "test_fx.py" in node.stack_trace
 
     def test_graph_unique_names_manual(self):
-        graph: pippy.fx.Graph = pippy.fx.Graph()
-        a: pippy.fx.Node = graph.create_node("placeholder", "x")
-        b: pippy.fx.Node = graph.create_node(
+        graph: torch.fx.Graph = torch.fx.Graph()
+        a: torch.fx.Node = graph.create_node("placeholder", "x")
+        b: torch.fx.Node = graph.create_node(
             "call_module", "linear_mod", args=(a,), name="foo_1_1"
         )
-        c: pippy.fx.Node = graph.create_node("get_attr", "y_attr", name="foo_1")
-        d: pippy.fx.Node = graph.create_node(
+        c: torch.fx.Node = graph.create_node("get_attr", "y_attr", name="foo_1")
+        d: torch.fx.Node = graph.create_node(
             "call_function", operator.add, args=(b, c)
         )
         graph.output(d)
-        graph2 = pippy.fx.Graph()
+        graph2 = torch.fx.Graph()
         val_map: Dict[Node, Node] = {}
         graph2.graph_copy(graph, val_map)
         seen_names: Set[str] = set()
@@ -794,7 +794,7 @@ class TestFX(JitTestCase):
             # Load instructions
             interpreter.set_instructions(instructions)
             # Specify name for single output
-            assert isinstance(output_node.args[0], pippy.fx.Node)
+            assert isinstance(output_node.args[0], torch.fx.Node)
             interpreter.set_output_name(output_node.args[0].name)
 
             # ===== Stage 3: Create a wrapper GraphModule around the interpreter =====
@@ -814,7 +814,7 @@ class TestFX(JitTestCase):
             # without it messing up Python `hasattr` for some reason. More digging
             # into CPython's implementation of hasattr is probably in order...
 
-            graph = pippy.fx.Graph()
+            graph = torch.fx.Graph()
             # Add placeholders for fn inputs
             placeholder_nodes = []
             for name in fn_input_names:
@@ -896,7 +896,7 @@ class TestFX(JitTestCase):
 
         ec = ExampleCode()
 
-        traced = pippy.fx.symbolic_trace(ec)
+        traced = torch.fx.symbolic_trace(ec)
 
         x = torch.randn(bs, d_hid)
         torch.testing.assert_allclose(ec(x), traced(x))
@@ -1020,7 +1020,7 @@ class TestFX(JitTestCase):
         self.assertEqual(loaded(x), traced(x))
 
     def test_pickle_custom_import(self):
-        graph = pippy.fx.Graph()
+        graph = torch.fx.Graph()
         a = graph.placeholder("x")
         b = graph.placeholder("y")
         c = graph.call_function(a_non_torch_leaf, (a, b))
@@ -1034,12 +1034,12 @@ class TestFX(JitTestCase):
         self.assertEqual(loaded(x, y), gm(x, y))
 
     def test_all_input_nodes(self):
-        graph: pippy.fx.Graph = pippy.fx.Graph()
-        a: pippy.fx.Node = graph.placeholder("x")
-        b: pippy.fx.Node = graph.call_module("linear_mod", args=(a,))
-        c: pippy.fx.Node = graph.get_attr("y_attr")
-        d: pippy.fx.Node = graph.call_function(operator.add, args=(b, c))
-        e: pippy.fx.Node = graph.call_function(torch.unsqueeze, args=(d, 0))
+        graph: torch.fx.Graph = torch.fx.Graph()
+        a: torch.fx.Node = graph.placeholder("x")
+        b: torch.fx.Node = graph.call_module("linear_mod", args=(a,))
+        c: torch.fx.Node = graph.get_attr("y_attr")
+        d: torch.fx.Node = graph.call_function(operator.add, args=(b, c))
+        e: torch.fx.Node = graph.call_function(torch.unsqueeze, args=(d, 0))
         graph.output(e)
         graph.lint()
 
@@ -1054,7 +1054,7 @@ class TestFX(JitTestCase):
         traced.graph.lint()
 
         def transform(traced):
-            new_graph = pippy.fx.Graph()
+            new_graph = torch.fx.Graph()
             val_map: Dict[Node, Node] = {}
             output_value = new_graph.graph_copy(traced.graph, val_map)
             relu_out = new_graph.create_node(
@@ -1204,7 +1204,7 @@ class TestFX(JitTestCase):
             def forward(self, x):
                 return x + torch.rand(3, 4)
 
-        traced = pippy.fx.symbolic_trace(IHaveATensorConstant())
+        traced = torch.fx.symbolic_trace(IHaveATensorConstant())
         torch.jit.script(traced)
 
     def test_autowrap_functions(self):
@@ -1232,7 +1232,7 @@ class TestFX(JitTestCase):
         def foo(x: Tuple):
             return x[0]
 
-        traced = pippy.fx.symbolic_trace(foo)
+        traced = torch.fx.symbolic_trace(foo)
         x = (torch.randn(5, 3),)
         torch.testing.assert_allclose(traced(x), x[0])
 
@@ -1403,7 +1403,7 @@ class TestFX(JitTestCase):
         self.assertEqual(traced_out.right, ref_out.right)
 
     def test_custom_proxy_type_literal(self):
-        class TensorPair(metaclass=pippy.fx.ProxyableClassMeta):
+        class TensorPair(metaclass=torch.fx.ProxyableClassMeta):
             def __init__(self, left, right):
                 self.left, self.right = left, right
 
@@ -1432,7 +1432,7 @@ class TestFX(JitTestCase):
         self.assertEqual(traced_out.right, ref_out.right)
 
     def test_custom_proxy_dynamic_value(self):
-        class TensorPair(metaclass=pippy.fx.ProxyableClassMeta):
+        class TensorPair(metaclass=torch.fx.ProxyableClassMeta):
             def __init__(self, left, right):
                 self.left, self.right = left, right
 
@@ -1461,7 +1461,7 @@ class TestFX(JitTestCase):
         self.assertEqual(traced_out.right, ref_out.right)
 
     def test_custom_proxy_input_dependent_control_flow(self):
-        class ZeroTensor(metaclass=pippy.fx.ProxyableClassMeta):
+        class ZeroTensor(metaclass=torch.fx.ProxyableClassMeta):
             def __init__(self, inp):
                 if inp.sum() == 0:
                     self.is_zero = True
@@ -1509,10 +1509,10 @@ class TestFX(JitTestCase):
         self.assertEqual(r, ref)
 
     def test_remove_uses(self):
-        g: pippy.fx.Graph = Graph()
-        x: pippy.fx.Node = g.placeholder("x")
-        relu: pippy.fx.Node = g.call_function(torch.relu, (x,))
-        neg: pippy.fx.Node = g.call_function(torch.neg, (relu,))
+        g: torch.fx.Graph = Graph()
+        x: torch.fx.Node = g.placeholder("x")
+        relu: torch.fx.Node = g.call_function(torch.relu, (x,))
+        neg: torch.fx.Node = g.call_function(torch.neg, (relu,))
         g.output(neg)
 
         neg.replace_all_uses_with(relu)
@@ -1521,10 +1521,10 @@ class TestFX(JitTestCase):
         self.assertTrue(neg not in relu.users)
 
     def test_remove_uses_with_custom_filter(self):
-        g: pippy.fx.Graph = Graph()
-        x: pippy.fx.Node = g.placeholder("x")
-        relu: pippy.fx.Node = g.call_function(torch.relu, (x,))
-        neg: pippy.fx.Node = g.call_function(torch.neg, (relu,))
+        g: torch.fx.Graph = Graph()
+        x: torch.fx.Node = g.placeholder("x")
+        relu: torch.fx.Node = g.call_function(torch.relu, (x,))
+        neg: torch.fx.Node = g.call_function(torch.neg, (relu,))
         g.output(neg)
 
         neg.replace_all_uses_with(relu, lambda x: x != neg)
@@ -1557,20 +1557,20 @@ class TestFX(JitTestCase):
         self.assertEqual(traced(torch.ones(1)), original.forward(torch.ones(1)))
 
     def test_construct_root_dict(self):
-        graph: pippy.fx.Graph = pippy.fx.Graph()
-        a: pippy.fx.Node = graph.create_node("placeholder", "x")
-        b: pippy.fx.Node = graph.create_node(
+        graph: torch.fx.Graph = torch.fx.Graph()
+        a: torch.fx.Node = graph.create_node("placeholder", "x")
+        b: torch.fx.Node = graph.create_node(
             "call_module", "foo.bar.baz", args=(a,)
         )
-        c: pippy.fx.Node = graph.create_node("get_attr", "zip.zap.zam")
-        d: pippy.fx.Node = graph.create_node(
+        c: torch.fx.Node = graph.create_node("get_attr", "zip.zap.zam")
+        d: torch.fx.Node = graph.create_node(
             "call_function", operator.add, args=(b, c)
         )
         graph.output(d)
 
         linear_mod: torch.nn.Module = torch.nn.Linear(3, 4)
         add_param: torch.Tensor = torch.rand(3, 4)
-        gm: pippy.fx.GraphModule = pippy.fx.GraphModule(
+        gm: torch.fx.GraphModule = torch.fx.GraphModule(
             {"foo.bar.baz": linear_mod, "zip.zap.zam": add_param}, graph
         )
         gm.graph.lint()
@@ -1606,7 +1606,7 @@ class TestFX(JitTestCase):
                 self.x = x
                 self.y = y
 
-            def __fx_create_arg__(self, tracer: pippy.fx.Tracer):
+            def __fx_create_arg__(self, tracer: torch.fx.Tracer):
                 return tracer.create_node(
                     "call_function",
                     CustomArgObject,
@@ -1634,13 +1634,13 @@ class TestFX(JitTestCase):
                 o = CustomArgObject(x, y)
                 return self.inner(o)
 
-        class CreateArgTracer(pippy.fx.Tracer):
+        class CreateArgTracer(torch.fx.Tracer):
             def is_leaf_module(self, m, module_qualified_name):
                 return type(m) is HasCustomArgObjectWhenLeaf
 
         m = Root()
         graph = CreateArgTracer().trace(m)
-        gm = pippy.fx.GraphModule(m, graph)
+        gm = torch.fx.GraphModule(m, graph)
         assert "CustomArgObject(" in gm.code
 
     def test_trace_fn_constant(self):
@@ -1657,7 +1657,7 @@ class TestFX(JitTestCase):
     def test_copy_no_remap(self):
         traced = symbolic_trace(SimpleTest())
         g = traced.graph
-        copied = pippy.fx.Graph()
+        copied = torch.fx.Graph()
         for node in g.nodes:
             copied.node_copy(node)
         with self.assertRaisesRegex(
@@ -1666,13 +1666,13 @@ class TestFX(JitTestCase):
             copied.lint()
 
     def test_wrong_topo(self):
-        graph: pippy.fx.Graph = pippy.fx.Graph()
-        a: pippy.fx.Node = graph.create_node("placeholder", "x")
-        b: pippy.fx.Node = graph.create_node(
+        graph: torch.fx.Graph = torch.fx.Graph()
+        a: torch.fx.Node = graph.create_node("placeholder", "x")
+        b: torch.fx.Node = graph.create_node(
             "call_module", "foo.bar.baz", args=(a,)
         )
-        c: pippy.fx.Node = graph.create_node("get_attr", "zip.zap.zam")
-        d: pippy.fx.Node = graph.create_node(
+        c: torch.fx.Node = graph.create_node("get_attr", "zip.zap.zam")
+        d: torch.fx.Node = graph.create_node(
             "call_function", operator.add, args=(b, c)
         )
         graph.output(d)
@@ -1684,9 +1684,9 @@ class TestFX(JitTestCase):
             graph.lint()
 
     def test_wrong_target_type(self):
-        graph: pippy.fx.Graph = pippy.fx.Graph()
+        graph: torch.fx.Graph = torch.fx.Graph()
         with self.assertRaises(ValueError):
-            n = pippy.fx.Node(
+            n = torch.fx.Node(
                 graph=graph,
                 name="foo",
                 op="call_function",
@@ -1784,12 +1784,12 @@ class TestFX(JitTestCase):
 
         ut = UnderTest()
 
-        class RTTracer(pippy.fx.Tracer):
+        class RTTracer(torch.fx.Tracer):
             def is_leaf_module(self, m, module_qualified_name):
                 return type(m) is ReturnTwo
 
         graph = RTTracer().trace(ut)
-        mod = pippy.fx.GraphModule(ut, graph)
+        mod = torch.fx.GraphModule(ut, graph)
 
         shape_prop.ShapeProp(mod).propagate(torch.rand(3, 4))
 
@@ -1844,7 +1844,7 @@ class TestFX(JitTestCase):
                 return self.linear(x + self.param).clamp(min=0.0, max=1.0)
 
         m = MyModule()
-        gm = pippy.fx.symbolic_trace(m)
+        gm = torch.fx.symbolic_trace(m)
 
         interpreter = Interpreter(gm)
         input = torch.randn(3, 4)
@@ -1862,7 +1862,7 @@ class TestFX(JitTestCase):
                 return self.linear(x + self.param).clamp(min=0.0, max=1.0)
 
         m = MyModule()
-        gm = pippy.fx.symbolic_trace(m)
+        gm = torch.fx.symbolic_trace(m)
 
         class RunNodeInterpreter(Interpreter):
             def __init__(self, module):
@@ -1882,7 +1882,7 @@ class TestFX(JitTestCase):
         def fn(x):
             return torch.sigmoid(x).neg()
 
-        gm = pippy.fx.symbolic_trace(fn)
+        gm = torch.fx.symbolic_trace(fn)
 
         class NegSigmSwapInterpreter(Interpreter):
             def call_function(
@@ -1914,7 +1914,7 @@ class TestFX(JitTestCase):
             def forward(self, x):
                 return self.linear(x + self.param).clamp(min=0.0, max=1.0)
 
-        gm = pippy.fx.symbolic_trace(MyModule())
+        gm = torch.fx.symbolic_trace(MyModule())
         interp = Interpreter(gm)
         env = {}
         for node in gm.graph.nodes:
@@ -1932,7 +1932,7 @@ class TestFX(JitTestCase):
         def with_star_args(x, *args):
             return x + args[0]
 
-        gm = pippy.fx.symbolic_trace(with_star_args)
+        gm = torch.fx.symbolic_trace(with_star_args)
         interp = Interpreter(gm)
         result = interp.run(
             torch.ones(3, 4), torch.ones(3, 4), torch.rand(3, 4)
@@ -1942,7 +1942,7 @@ class TestFX(JitTestCase):
     @skipIfNoTorchVision
     def test_interpreter_noop_resnet18(self):
         rn18 = torchvision_models.resnet18()
-        transformed = pippy.fx.Transformer(symbolic_trace(rn18)).transform()
+        transformed = torch.fx.Transformer(symbolic_trace(rn18)).transform()
         inp = torch.randn(5, 3, 224, 224)
         self.assertEqual(transformed(inp), rn18(inp))
 
@@ -1961,7 +1961,7 @@ class TestFX(JitTestCase):
                 return x + y
 
         model = Model()
-        gm = pippy.fx.symbolic_trace(model)
+        gm = torch.fx.symbolic_trace(model)
 
         interp = Interpreter(gm)
         x = torch.randn(5, 3)
@@ -1974,7 +1974,7 @@ class TestFX(JitTestCase):
                 return x + y
 
         model = Model()
-        gm = pippy.fx.symbolic_trace(model)
+        gm = torch.fx.symbolic_trace(model)
 
         interp = Interpreter(gm)
         x = torch.randn(5, 3)
@@ -1995,7 +1995,7 @@ class TestFX(JitTestCase):
                 return self.linear(x + self.param).clamp(min=0.0, max=1.0)
 
         m = MyModule()
-        gm = pippy.fx.symbolic_trace(m)
+        gm = torch.fx.symbolic_trace(m)
 
         new_gm = Transformer(gm).transform()
 
@@ -2006,7 +2006,7 @@ class TestFX(JitTestCase):
         def fn(x):
             return torch.sigmoid(x).neg()
 
-        gm = pippy.fx.symbolic_trace(fn)
+        gm = torch.fx.symbolic_trace(fn)
 
         class NegSigmSwapXformer(Transformer):
             def call_function(
@@ -2041,7 +2041,7 @@ class TestFX(JitTestCase):
                 return x, out
 
         m = MyModule()
-        gm = pippy.fx.symbolic_trace(m)
+        gm = torch.fx.symbolic_trace(m)
 
         new_gm = Transformer(gm).transform()
 
@@ -2087,13 +2087,13 @@ class TestFX(JitTestCase):
         self.assertTrue(any(n.target == torch.relu for n in traced.graph.nodes))
 
     def test_empty_graph_codegen(self):
-        graph = pippy.fx.Graph()
-        gm = pippy.fx.GraphModule(torch.nn.Module(), graph)
+        graph = torch.fx.Graph()
+        gm = torch.fx.GraphModule(torch.nn.Module(), graph)
         self.assertEqual(gm(), None)
 
     def test_sequential(self):
         m = torch.nn.Sequential(torch.nn.Conv2d(1, 1, 1))
-        gm = pippy.fx.symbolic_trace(m)
+        gm = torch.fx.symbolic_trace(m)
         gm_copy = copy.deepcopy(gm)
 
     def test_ctx_mgr(self):
@@ -2113,12 +2113,12 @@ class TestFX(JitTestCase):
         self.checkGraphModule(m, (torch.rand(3, 4),))
 
     def test_typename_print(self):
-        graph: pippy.fx.Graph = pippy.fx.Graph()
-        x: pippy.fx.Node = graph.create_node("placeholder", "x")
-        b: pippy.fx.Node = graph.create_node(
+        graph: torch.fx.Graph = torch.fx.Graph()
+        x: torch.fx.Node = graph.create_node("placeholder", "x")
+        b: torch.fx.Node = graph.create_node(
             "call_function", target=torch.relu, args=(x,), type_expr=List[float]
         )
-        output: pippy.fx.Node = graph.output(b)
+        output: torch.fx.Node = graph.output(b)
 
         self.assertTrue("typing.List[float]" in str(graph))
 
@@ -2157,24 +2157,24 @@ class TestFX(JitTestCase):
         self.checkGraphModule(fm, (torch.rand(3, 4),))
 
     def test_inf_nan_kwds(self):
-        graph: pippy.fx.Graph = pippy.fx.Graph()
-        x: pippy.fx.Node = graph.create_node("placeholder", "x")
-        b: pippy.fx.Node = graph.create_node(
+        graph: torch.fx.Graph = torch.fx.Graph()
+        x: torch.fx.Node = graph.create_node("placeholder", "x")
+        b: torch.fx.Node = graph.create_node(
             "call_function", operator.add, (x, float("inf")), {}, name="inf"
         )
-        c: pippy.fx.Node = graph.create_node(
+        c: torch.fx.Node = graph.create_node(
             "call_function", operator.add, (x, float("nan")), {}, name="nan"
         )
         graph.output((b, c))
 
-        gm = pippy.fx.GraphModule(torch.nn.Module(), graph)
+        gm = torch.fx.GraphModule(torch.nn.Module(), graph)
         x = torch.rand(3, 4)
         self.assertEqual(gm(x), (x + float("inf"), x + float("nan")))
 
     def test_deepcopy_recursion_depth(self):
         depth = sys.getrecursionlimit() + 20
 
-        g = pippy.fx.Graph()
+        g = torch.fx.Graph()
         x = g.placeholder("x")
         for i in range(depth):
             x = g.call_function(torch.relu, (x,))
@@ -2196,7 +2196,7 @@ class TestFX(JitTestCase):
     def test_replace_uses(self):
         rn18 = torchvision_models.resnet18()
 
-        class LowerReluTracer(pippy.fx.Tracer):
+        class LowerReluTracer(torch.fx.Tracer):
             def is_leaf_module(self, m: torch.nn.Module, qualname: str):
                 if isinstance(m, torch.nn.ReLU):
                     return False
@@ -2226,74 +2226,74 @@ class TestFX(JitTestCase):
             rn18_traced.graph.erase_node(node)
 
     def test_replace_input(self):
-        graph: pippy.fx.Graph = pippy.fx.Graph()
-        x: pippy.fx.Node = graph.create_node("placeholder", "x")
-        y: pippy.fx.Node = graph.create_node("placeholder", "y")
-        b: pippy.fx.Node = graph.create_node(
+        graph: torch.fx.Graph = torch.fx.Graph()
+        x: torch.fx.Node = graph.create_node("placeholder", "x")
+        y: torch.fx.Node = graph.create_node("placeholder", "y")
+        b: torch.fx.Node = graph.create_node(
             "call_function", target=torch.relu, args=(x,)
         )
-        output: pippy.fx.Node = graph.output(b)
+        output: torch.fx.Node = graph.output(b)
 
         b.replace_input_with(x, y)
 
-        gm = pippy.fx.GraphModule(torch.nn.Module(), graph)
+        gm = torch.fx.GraphModule(torch.nn.Module(), graph)
 
         input_x = torch.randn(33, 44)
         input_y = torch.randn(11, 22)
         self.assertEqual(gm(input_x, input_y), torch.relu(input_y))
 
     def test_insertion_point(self):
-        graph: pippy.fx.Graph = pippy.fx.Graph()
-        x: pippy.fx.Node = graph.create_node("placeholder", "x")
-        b: pippy.fx.Node = graph.create_node(
+        graph: torch.fx.Graph = torch.fx.Graph()
+        x: torch.fx.Node = graph.create_node("placeholder", "x")
+        b: torch.fx.Node = graph.create_node(
             "call_function", target=torch.relu, args=(x,)
         )
-        output: pippy.fx.Node = graph.output(b)
+        output: torch.fx.Node = graph.output(b)
 
         with graph.inserting_before(b):
-            neg: pippy.fx.Node = graph.call_function(
+            neg: torch.fx.Node = graph.call_function(
                 the_function=torch.neg, args=(x,)
             )
             _, *relu_args = b.args
             b.args = (neg, *relu_args)
 
-        gm = pippy.fx.GraphModule(torch.nn.Module(), graph)
+        gm = torch.fx.GraphModule(torch.nn.Module(), graph)
 
         input = torch.randn(33, 44)
         self.assertEqual(gm(input), torch.relu(torch.neg(input)))
 
     def test_update_args_api(self):
-        graph: pippy.fx.Graph = pippy.fx.Graph()
-        x: pippy.fx.Node = graph.create_node("placeholder", "x")
-        y: pippy.fx.Node = graph.create_node("placeholder", "y")
-        b: pippy.fx.Node = graph.create_node(
+        graph: torch.fx.Graph = torch.fx.Graph()
+        x: torch.fx.Node = graph.create_node("placeholder", "x")
+        y: torch.fx.Node = graph.create_node("placeholder", "y")
+        b: torch.fx.Node = graph.create_node(
             "call_function", target=torch.relu, args=(x,)
         )
-        output: pippy.fx.Node = graph.output(b)
+        output: torch.fx.Node = graph.output(b)
 
-        orig_gm = pippy.fx.GraphModule(torch.nn.Module(), graph)
+        orig_gm = torch.fx.GraphModule(torch.nn.Module(), graph)
         inp_x, inp_y = torch.randn(5, 3), torch.randn(3, 5)
         self.assertEqual(orig_gm(inp_x, inp_y), torch.relu(inp_x))
 
         b.update_arg(0, y)
-        new_gm = pippy.fx.GraphModule(torch.nn.Module(), graph)
+        new_gm = torch.fx.GraphModule(torch.nn.Module(), graph)
         self.assertEqual(new_gm(inp_x, inp_y), torch.relu(inp_y))
 
     def test_update_kwargs_api(self):
-        graph: pippy.fx.Graph = pippy.fx.Graph()
-        x: pippy.fx.Node = graph.create_node("placeholder", "x")
-        y: pippy.fx.Node = graph.create_node("placeholder", "y")
-        b: pippy.fx.Node = graph.create_node(
+        graph: torch.fx.Graph = torch.fx.Graph()
+        x: torch.fx.Node = graph.create_node("placeholder", "x")
+        y: torch.fx.Node = graph.create_node("placeholder", "y")
+        b: torch.fx.Node = graph.create_node(
             "call_function", target=torch.relu, kwargs={"input": x}
         )
-        output: pippy.fx.Node = graph.output(b)
+        output: torch.fx.Node = graph.output(b)
 
-        orig_gm = pippy.fx.GraphModule(torch.nn.Module(), graph)
+        orig_gm = torch.fx.GraphModule(torch.nn.Module(), graph)
         inp_x, inp_y = torch.randn(5, 3), torch.randn(3, 5)
         self.assertEqual(orig_gm(inp_x, inp_y), torch.relu(inp_x))
 
         b.update_kwarg("input", y)
-        new_gm = pippy.fx.GraphModule(torch.nn.Module(), graph)
+        new_gm = torch.fx.GraphModule(torch.nn.Module(), graph)
         self.assertEqual(new_gm(inp_x, inp_y), torch.relu(inp_y))
 
     def test_immutable_list_pytree_ops(self):
@@ -2319,32 +2319,32 @@ class TestFX(JitTestCase):
         assert isinstance(unflattened, immutable_dict)
 
     def test_move_before(self):
-        graph: pippy.fx.Graph = pippy.fx.Graph()
-        x: pippy.fx.Node = graph.create_node("placeholder", "x")
-        b: pippy.fx.Node = graph.create_node(
+        graph: torch.fx.Graph = torch.fx.Graph()
+        x: torch.fx.Node = graph.create_node("placeholder", "x")
+        b: torch.fx.Node = graph.create_node(
             "call_function", target=torch.relu, args=(x,)
         )
-        output: pippy.fx.Node = graph.output(b)
+        output: torch.fx.Node = graph.output(b)
 
-        neg: pippy.fx.Node = graph.call_function(
+        neg: torch.fx.Node = graph.call_function(
             the_function=torch.neg, args=(x,)
         )
         _, *relu_args = b.args
         b.args = (neg, *relu_args)
         b.prepend(neg)
 
-        gm = pippy.fx.GraphModule(torch.nn.Module(), graph)
+        gm = torch.fx.GraphModule(torch.nn.Module(), graph)
 
         input = torch.randn(33, 44)
         self.assertEqual(gm(input), torch.relu(torch.neg(input)))
 
     def test_prepend_self(self):
-        graph: pippy.fx.Graph = pippy.fx.Graph()
-        x: pippy.fx.Node = graph.create_node("placeholder", "x")
-        b: pippy.fx.Node = graph.create_node(
+        graph: torch.fx.Graph = torch.fx.Graph()
+        x: torch.fx.Node = graph.create_node("placeholder", "x")
+        b: torch.fx.Node = graph.create_node(
             "call_function", target=torch.relu, args=(x,)
         )
-        output: pippy.fx.Node = graph.output(b)
+        output: torch.fx.Node = graph.output(b)
 
         b.prepend(b)
         x.append(b)
@@ -2376,8 +2376,8 @@ class TestFX(JitTestCase):
                 schemas = get_signature_for_torch_op(obj)
 
     def test_find_uses(self):
-        graph = pippy.fx.Graph()
-        x = pippy.fx.Proxy(graph.placeholder("x"))
+        graph = torch.fx.Graph()
+        x = torch.fx.Proxy(graph.placeholder("x"))
 
         y = torch.relu(x)
         z = x + x
@@ -2403,7 +2403,7 @@ class TestFX(JitTestCase):
         inline_into = symbolic_trace(InlineInto())
         to_inline = symbolic_trace(ToInline())
 
-        combined_graph = pippy.fx.Graph()
+        combined_graph = torch.fx.Graph()
         output_node = combined_graph.graph_copy(inline_into.graph, {})
 
         input_node = list(to_inline.graph.nodes)[0]
@@ -2413,7 +2413,7 @@ class TestFX(JitTestCase):
         output = combined_graph.graph_copy(to_inline.graph, val_map)
         combined_graph.output(output)
 
-        combined_module = pippy.fx.GraphModule(
+        combined_module = torch.fx.GraphModule(
             torch.nn.Module(), combined_graph
         )
 
@@ -2421,8 +2421,8 @@ class TestFX(JitTestCase):
         self.assertEqual(combined_module(input), input.relu().neg())
 
     def test_multi_insert_point(self):
-        graph = pippy.fx.Graph()
-        x = pippy.fx.Proxy(graph.placeholder("x"))
+        graph = torch.fx.Graph()
+        x = torch.fx.Proxy(graph.placeholder("x"))
         relu = torch.relu(x)
 
         with graph.inserting_before(relu.node):
@@ -2437,7 +2437,7 @@ class TestFX(JitTestCase):
             assert expected in node.name
 
     def test_reassign_args_kwargs_uses(self):
-        graph = pippy.fx.Graph()
+        graph = torch.fx.Graph()
         x, y = Proxy(graph.placeholder("x")), Proxy(graph.placeholder("y"))
         z = x + y
         zed = z + z + z
@@ -2472,7 +2472,7 @@ class TestFX(JitTestCase):
             def forward(self, x):
                 return self.m({42: x})
 
-        class MyTracer(pippy.fx.Tracer):
+        class MyTracer(torch.fx.Tracer):
             def is_leaf_module(
                 self, m: torch.nn.Module, module_qualified_name: str
             ) -> bool:
@@ -2493,7 +2493,7 @@ class TestFX(JitTestCase):
             def forward(self, x):
                 return self.m({x: x})
 
-        class MyTracer(pippy.fx.Tracer):
+        class MyTracer(torch.fx.Tracer):
             def is_leaf_module(
                 self, m: torch.nn.Module, module_qualified_name: str
             ) -> bool:
@@ -2538,7 +2538,7 @@ class TestFX(JitTestCase):
             def forward(self, x):
                 return self.a.b, self.a.b.t(), self.a.b.view(12)
 
-        traced = pippy.fx.symbolic_trace(Foo())
+        traced = torch.fx.symbolic_trace(Foo())
         assert all("constant" not in node.target for node in traced.graph.nodes)
 
     def test_single_default_arg(self):
@@ -2766,7 +2766,7 @@ class TestFX(JitTestCase):
         def fn(x):
             return wrapper_fn(x)
 
-        traced = pippy.fx.symbolic_trace(fn)
+        traced = torch.fx.symbolic_trace(fn)
 
         with self.assertRaisesRegex(
             RuntimeError,
@@ -2781,7 +2781,7 @@ class TestFX(JitTestCase):
             def forward(self, x):
                 return wrapper_fn(x)
 
-        traced = pippy.fx.symbolic_trace(M())
+        traced = torch.fx.symbolic_trace(M())
 
         with self.assertRaisesRegex(
             RuntimeError,
@@ -2829,7 +2829,7 @@ class TestFX(JitTestCase):
         self.assertEqual(i, 3)
 
     def test_no_mutation(self):
-        from pippy.fx.immutable_collections import immutable_list
+        from torch.fx.immutable_collections import immutable_list
 
         x = immutable_list([3, 4])
         with self.assertRaisesRegex(NotImplementedError, "new_args"):
@@ -2870,7 +2870,7 @@ class TestFX(JitTestCase):
             def forward(self, x):
                 return torch.dot(self.W, x)
 
-        traced = pippy.fx.symbolic_trace(M())
+        traced = torch.fx.symbolic_trace(M())
 
         out = [n for n in traced.graph.nodes if n.op == "output"][-1]
         with traced.graph.inserting_before(out):
@@ -2902,7 +2902,7 @@ class TestFX(JitTestCase):
             def forward(self, x):
                 return self.linear(x)
 
-        traced = pippy.fx.symbolic_trace(M())
+        traced = torch.fx.symbolic_trace(M())
 
         # Do not change this to `capture_stderr` or another context
         # manager without ensuring that the output is as expected
@@ -2922,7 +2922,7 @@ class TestFX(JitTestCase):
             def forward(self, x):
                 return torch.relu(x)
 
-        gm = pippy.fx.symbolic_trace(Foo())
+        gm = torch.fx.symbolic_trace(Foo())
 
         x = torch.randn(5, 3)
         out = gm(x)
@@ -2962,7 +2962,7 @@ class TestFX(JitTestCase):
             torch.sigmoid(x, out=y)
             return y
 
-        class MyTracer(pippy.fx.Tracer):
+        class MyTracer(torch.fx.Tracer):
             check_mutable_operations = True
 
         tracer = MyTracer()
@@ -3023,7 +3023,7 @@ class TestFX(JitTestCase):
         self.assertIs(a_lifted_leaf2, real_a_lifed_leaf2)
 
     def test_profiler_ranges_side_effect(self):
-        g = pippy.fx.Graph()
+        g = torch.fx.Graph()
         handle = g.call_function(
             torch.ops.profiler._record_function_enter, ("test_range",)
         )
@@ -3084,7 +3084,7 @@ class TestFX(JitTestCase):
         self.assertIs(wrapped_via_decorator, real_wrapped_via_decorator)
         self.assertFalse(hasattr(wrapped_via_decorator, "__fx_already_patched"))
 
-        transformed = pippy.fx.Transformer(traced).transform()
+        transformed = torch.fx.Transformer(traced).transform()
         self.assertIn("wrapped_via_decorator", transformed.code)
         self.assertEqual(transformed(0), 1)
         self.assertIs(wrapped_via_decorator, real_wrapped_via_decorator)
@@ -3286,7 +3286,7 @@ class TestFX(JitTestCase):
 
         model = Model()
 
-        class MyCustomTracer(pippy.fx.Tracer):
+        class MyCustomTracer(torch.fx.Tracer):
             def is_leaf_module(
                 self, m: torch.nn.Module, module_qualified_name: str
             ) -> bool:
@@ -3294,7 +3294,7 @@ class TestFX(JitTestCase):
 
         inputs = torch.randn(1, 10)
         traced_graph = MyCustomTracer().trace(model)
-        gm2 = pippy.fx.GraphModule(model, traced_graph)
+        gm2 = torch.fx.GraphModule(model, traced_graph)
         gm2.delete_all_unused_submodules()
         torch.testing.assert_allclose(gm2(inputs), model(inputs))
 
@@ -3314,7 +3314,7 @@ class TestFX(JitTestCase):
         bias = torch.tensor([0.0], requires_grad=True)
         buffer = torch.tensor([0.0])
         parameters = {"l1.weight": weight, "l1.bias": bias, "buffer": buffer}
-        fx_module = pippy.fx.symbolic_trace(module)
+        fx_module = torch.fx.symbolic_trace(module)
         res = _stateless.functional_call(fx_module, parameters, x)
         res.backward()
         self.assertIsNotNone(weight.grad)
@@ -3577,7 +3577,7 @@ class TestFX(JitTestCase):
             def forward(self, x: Tuple[()], y: Tuple[str, Tuple[()]]):
                 return "foo"
 
-        traced = pippy.fx.symbolic_trace(Foo())
+        traced = torch.fx.symbolic_trace(Foo())
 
         x = ()
         y = ("bar", ())
@@ -3608,10 +3608,10 @@ class TestFX(JitTestCase):
             return x + 1
 
         try:
-            pippy.fx.proxy.TracerBase.trace_asserts = True
+            torch.fx.proxy.TracerBase.trace_asserts = True
             traced = symbolic_trace(f)
         finally:
-            pippy.fx.proxy.TracerBase.trace_asserts = False
+            torch.fx.proxy.TracerBase.trace_asserts = False
 
         self.assertEqual(f(2), traced(2))
         with self.assertRaises(AssertionError):
@@ -3830,12 +3830,12 @@ def forward(self, args_list: List[torch.Tensor]){maybe_return_annotation}:
         self.assertEqual(Interpreter(nf).run(vals), nf(vals))
 
     def test_imul_code_print(self):
-        graph = pippy.fx.Graph()
+        graph = torch.fx.Graph()
         a = graph.placeholder("a")
         b = graph.placeholder("b")
         graph.call_function(operator.imul, (a, b), {})
         graph.output(a)
-        gm = pippy.fx.GraphModule({}, graph)
+        gm = torch.fx.GraphModule({}, graph)
         gm.recompile()
         self.assertEqual(gm(2, 3), 6)
         self.assertIn("a *= b", gm.code)
@@ -3857,7 +3857,7 @@ def forward(self, args_list: List[torch.Tensor]){maybe_return_annotation}:
 
 
 def run_getitem_target():
-    from pippy.fx._symbolic_trace import _wrapped_methods_to_patch
+    from torch.fx._symbolic_trace import _wrapped_methods_to_patch
 
     _wrapped_methods_to_patch.append((torch.Tensor, "__getitem__"))
     try:
@@ -3871,12 +3871,12 @@ class TestOperatorSignatures(JitTestCase):
         # Checking for mutable operations whil tracing is feature flagged
         # Enable it in testing but not by default
         self.orig_tracer_mutable_flag = (
-            pippy.fx.proxy.TracerBase.check_mutable_operations
+            torch.fx.proxy.TracerBase.check_mutable_operations
         )
-        pippy.fx.proxy.TracerBase.check_mutable_operations = True
+        torch.fx.proxy.TracerBase.check_mutable_operations = True
 
     def tearDown(self):
-        pippy.fx.proxy.TracerBase.check_mutable_operations = (
+        torch.fx.proxy.TracerBase.check_mutable_operations = (
             self.orig_tracer_mutable_flag
         )
 
@@ -3920,13 +3920,13 @@ class TestFXAPIBackwardCompatibility(JitTestCase):
         # Checking for mutable operations whil tracing is feature flagged
         # Enable it in testing but not by default
         self.orig_tracer_mutable_flag = (
-            pippy.fx.proxy.TracerBase.check_mutable_operations
+            torch.fx.proxy.TracerBase.check_mutable_operations
         )
-        pippy.fx.proxy.TracerBase.check_mutable_operations = True
+        torch.fx.proxy.TracerBase.check_mutable_operations = True
 
     def tearDown(self):
         super().tearDown()
-        pippy.fx.proxy.TracerBase.check_mutable_operations = (
+        torch.fx.proxy.TracerBase.check_mutable_operations = (
             self.orig_tracer_mutable_flag
         )
 
@@ -4023,14 +4023,14 @@ class TestFXAPIBackwardCompatibility(JitTestCase):
             torch.memory_format: "torch.memory_format",
             slice: "slice",
             torch.nn.Module: "torch.nn.modules.module.Module",
-            pippy.fx.Graph: "pippy.fx.graph.Graph",
-            pippy.fx.Node: "pippy.fx.node.Node",
-            pippy.fx.Proxy: "pippy.fx.proxy.Proxy",
-            pippy.fx.node.Target: "pippy.fx.node.Target",
-            pippy.fx.node.Argument: "pippy.fx.node.Argument",
-            pippy.fx.graph.PythonCode: "pippy.fx.graph.PythonCode",
-            pippy.fx.graph_module.GraphModule: "pippy.fx.graph_module.GraphModule",
-            pippy.fx.subgraph_rewriter.Match: "pippy.fx.subgraph_rewriter.Match",
+            torch.fx.Graph: "torch.fx.graph.Graph",
+            torch.fx.Node: "torch.fx.node.Node",
+            torch.fx.Proxy: "torch.fx.proxy.Proxy",
+            torch.fx.node.Target: "torch.fx.node.Target",
+            torch.fx.node.Argument: "torch.fx.node.Argument",
+            torch.fx.graph.PythonCode: "torch.fx.graph.PythonCode",
+            torch.fx.graph_module.GraphModule: "torch.fx.graph_module.GraphModule",
+            torch.fx.subgraph_rewriter.Match: "torch.fx.subgraph_rewriter.Match",
             Ellipsis: "...",
             typing.Any: "Any",
             type(None): "NoneType",
@@ -4181,9 +4181,9 @@ class TestFXAPIBackwardCompatibility(JitTestCase):
         non_back_compat_objects = {}
 
         def check_symbols_have_bc_designation(m, prefix):
-            if not m.__name__.startswith("pippy.fx"):
+            if not m.__name__.startswith("torch.fx"):
                 return
-            if m.__name__.startswith("pippy.fx.experimental"):
+            if m.__name__.startswith("torch.fx.experimental"):
                 return
             for k, v in m.__dict__.items():
                 if v is m:
@@ -4196,20 +4196,20 @@ class TestFXAPIBackwardCompatibility(JitTestCase):
                     if v not in _MARKED_WITH_COMATIBLITY:
                         non_back_compat_objects.setdefault(v)
 
-        check_symbols_have_bc_designation(pippy.fx, ["torch", "fx"])
+        check_symbols_have_bc_designation(torch.fx, ["torch", "fx"])
         check_symbols_have_bc_designation(
-            pippy.fx.passes, ["torch", "fx", "passes"]
+            torch.fx.passes, ["torch", "fx", "passes"]
         )
 
         non_back_compat_strs = [
             torch.typename(obj) for obj in non_back_compat_objects.keys()
         ]
-        # Only want objects in pippy.fx
+        # Only want objects in torch.fx
         non_back_compat_strs = [
             s
             for s in non_back_compat_strs
-            if s.startswith("pippy.fx")
-            and not s.startswith("pippy.fx.experimental")
+            if s.startswith("torch.fx")
+            and not s.startswith("torch.fx.experimental")
         ]
         # Only want objects in public namespaces
         non_back_compat_strs = [
@@ -4223,7 +4223,7 @@ class TestFXAPIBackwardCompatibility(JitTestCase):
             raise AssertionError(
                 f"Public FX API(s) {non_back_compat_strs} introduced but not given a "
                 f"backwards-compatibility classification! Please decorate these "
-                f"API(s) with `@pippy.fx._compatibility.compatibility` to specify "
+                f"API(s) with `@torch.fx._compatibility.compatibility` to specify "
                 f"BC guarantees."
             )
 
@@ -4234,13 +4234,13 @@ class TestFunctionalTracing(JitTestCase):
         # Checking for mutable operations whil tracing is feature flagged
         # Enable it in testing but not by default
         self.orig_tracer_mutable_flag = (
-            pippy.fx.proxy.TracerBase.check_mutable_operations
+            torch.fx.proxy.TracerBase.check_mutable_operations
         )
-        pippy.fx.proxy.TracerBase.check_mutable_operations = True
+        torch.fx.proxy.TracerBase.check_mutable_operations = True
 
     def tearDown(self):
         super().tearDown()
-        pippy.fx.proxy.TracerBase.check_mutable_operations = (
+        torch.fx.proxy.TracerBase.check_mutable_operations = (
             self.orig_tracer_mutable_flag
         )
 
@@ -4517,12 +4517,12 @@ class TestVisionTracing(JitTestCase):
         # Checking for mutable operations while tracing is feature flagged
         # Enable it in testing but not by default
         self.orig_tracer_mutable_flag = (
-            pippy.fx.proxy.TracerBase.check_mutable_operations
+            torch.fx.proxy.TracerBase.check_mutable_operations
         )
-        pippy.fx.proxy.TracerBase.check_mutable_operations = True
+        torch.fx.proxy.TracerBase.check_mutable_operations = True
 
     def tearDown(self):
-        pippy.fx.proxy.TracerBase.check_mutable_operations = (
+        torch.fx.proxy.TracerBase.check_mutable_operations = (
             self.orig_tracer_mutable_flag
         )
 
@@ -4577,7 +4577,7 @@ class TestVisionTracing(JitTestCase):
                     graph = symbolic_trace(model)
             else:
                 out_transform = self.output_transform.get(name, lambda x: x)
-                graph: pippy.fx.GraphModule = symbolic_trace(model)
+                graph: torch.fx.GraphModule = symbolic_trace(model)
                 a = out_transform(model(x))
                 b = out_transform(graph(x))
                 self.assertEqual(a, b)

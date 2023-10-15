@@ -3,7 +3,7 @@ import argparse
 import os
 
 import pippy
-import pippy.fx
+import torch.fx
 
 import torch
 
@@ -15,7 +15,7 @@ from minGPT.mingpt.model import GPT, GPTConfig
 from pippy.IR import annotate_split_points, PipeSplitWrapper
 from torch.distributed._tensor import DeviceMesh
 
-pippy.fx.Tracer.proxy_buffer_attributes = True
+torch.fx.Tracer.proxy_buffer_attributes = True
 
 batch_size_per_chunk = 8
 

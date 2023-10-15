@@ -4,7 +4,7 @@ import os
 
 import torch
 
-import pippy.fx
+import torch.fx
 
 
 PIPPY_VERBOSITY = os.environ.get("PIPPY_VERBOSITY", "OFF")
@@ -27,4 +27,4 @@ def friendly_debug_info(v):
 
 
 def map_debug_info(a):
-    return pippy.fx.node.map_aggregate(a, friendly_debug_info)
+    return torch.fx.node.map_aggregate(a, friendly_debug_info)

@@ -7,7 +7,7 @@ import torch
 import torch.distributed as dist
 from torch._subclasses.fake_tensor import FakeTensorMode
 
-import pippy.fx as fx
+import torch.fx as fx
 from pippy.debug import PIPPY_VERBOSITY
 from pippy.IR import MultiUseParameterConfig, Pipe, PiPPyShapeProp
 from pippy.microbatch import (

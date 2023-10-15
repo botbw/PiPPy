@@ -3,7 +3,7 @@ import argparse
 import os
 
 import pippy
-import pippy.fx
+import torch.fx
 
 import torch
 import torch.distributed as dist
@@ -19,7 +19,7 @@ from torchvision import datasets, transforms  # type: ignore
 from tqdm import tqdm  # type: ignore
 
 
-pippy.fx.Tracer.proxy_buffer_attributes = True
+torch.fx.Tracer.proxy_buffer_attributes = True
 
 USE_TQDM = bool(int(os.getenv("USE_TQDM", "1")))
 

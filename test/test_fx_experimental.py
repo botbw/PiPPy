@@ -11,15 +11,15 @@ import unittest
 from types import BuiltinFunctionType
 from typing import Callable, Dict, List, Optional, Union
 
-import pippy.fx.experimental.meta_tracer
-import pippy.fx.experimental.optimization as optimization
+import torch.fx.experimental.meta_tracer
+import torch.fx.experimental.optimization as optimization
 
 import torch
-from pippy.fx._symbolic_trace import symbolic_trace
-from pippy.fx.experimental import merge_matmul
-from pippy.fx.experimental.accelerator_partitioner import Partitioner
-from pippy.fx.experimental.normalize import NormalizeArgs, NormalizeOperators
-from pippy.fx.experimental.partitioner_utils import (
+from torch.fx._symbolic_trace import symbolic_trace
+from torch.fx.experimental import merge_matmul
+from torch.fx.experimental.accelerator_partitioner import Partitioner
+from torch.fx.experimental.normalize import NormalizeArgs, NormalizeOperators
+from torch.fx.experimental.partitioner_utils import (
     Device,
     get_latency_of_partitioned_graph,
     get_partition_to_latency_mapping,
@@ -27,21 +27,21 @@ from pippy.fx.experimental.partitioner_utils import (
     PartitionerConfig,
     PartitionMode,
 )
-from pippy.fx.experimental.rewriter import RewritingTracer
-from pippy.fx.experimental.schema_type_annotation import AnnotateTypesWithSchema
-from pippy.fx.graph_module import GraphModule
-from pippy.fx.node import Node
-from pippy.fx.operator_schemas import (
+from torch.fx.experimental.rewriter import RewritingTracer
+from torch.fx.experimental.schema_type_annotation import AnnotateTypesWithSchema
+from torch.fx.graph_module import GraphModule
+from torch.fx.node import Node
+from torch.fx.operator_schemas import (
     _torchscript_type_to_python_type,
     create_type_hint,
     normalize_function,
     normalize_module,
     type_matches,
 )
-from pippy.fx.passes import graph_manipulation
-from pippy.fx.passes.param_fetch import lift_lowering_attrs_to_nodes
-from pippy.fx.passes.shape_prop import ShapeProp
-from pippy.fx.passes.split_module import split_module
+from torch.fx.passes import graph_manipulation
+from torch.fx.passes.param_fetch import lift_lowering_attrs_to_nodes
+from torch.fx.passes.shape_prop import ShapeProp
+from torch.fx.passes.split_module import split_module
 from torch.testing._internal.common_device_type import (
     instantiate_device_type_tests,
     onlyCPU,
@@ -647,7 +647,7 @@ class TestFXExperimental(JitTestCase):
         for BS in [15, 35]:
             x = torch.zeros(BS, dtype=torch.long).random_(42)
             meta_args = {"x": x.to(device="meta")}
-            gm = pippy.fx.experimental.meta_tracer.symbolic_trace(
+            gm = torch.fx.experimental.meta_tracer.symbolic_trace(
                 mttm, meta_args=meta_args
             )
             torch.testing.assert_close(gm(x), mttm(x))
@@ -795,7 +795,7 @@ terrible spacing
         for node in module_with_submodules.graph.nodes:
             if node.op == "call_module":
                 submod = submodules[node.target]
-                self.assertTrue(isinstance(submod, pippy.fx.GraphModule))
+                self.assertTrue(isinstance(submod, torch.fx.GraphModule))
                 for submod_node in submod.graph.nodes:
                     if submod_node.op != "output":
                         stored_op = submod_node.meta.get("test_meta_info")
@@ -815,7 +815,7 @@ terrible spacing
                 return x + kwargs["foo"]
 
         mod = ModuleWithKwargsExpansion()
-        traced = pippy.fx.symbolic_trace(mod)
+        traced = torch.fx.symbolic_trace(mod)
 
         seen_getitem = False
 
@@ -857,7 +857,7 @@ terrible spacing
                 return x
 
         mtt = ModelToTrace()
-        traced = pippy.fx.symbolic_trace(mtt, concrete_args={"targets": None})
+        traced = torch.fx.symbolic_trace(mtt, concrete_args={"targets": None})
 
         split = split_module(traced, mtt, lambda node: 0)
 
@@ -914,7 +914,7 @@ terrible spacing
     def test_normalize_args(self):
         m = resnet18()
 
-        class FunctionalTracer(pippy.fx.Tracer):
+        class FunctionalTracer(torch.fx.Tracer):
             def is_leaf_module(
                 self, m: torch.nn.Module, module_qualified_name: str
             ) -> bool:
@@ -923,7 +923,7 @@ terrible spacing
                 leaves = set([torch.nn.BatchNorm2d])
                 return type(m) in leaves
 
-        traced = pippy.fx.GraphModule(m, FunctionalTracer().trace(m))
+        traced = torch.fx.GraphModule(m, FunctionalTracer().trace(m))
 
         input = torch.randn(5, 3, 224, 224)
         ref_outs = traced(input)
@@ -1104,7 +1104,7 @@ class {test_classname}(torch.nn.Module):
         # Smoke test torchscript compilation since now we're emitting type annotations
         torch.jit.script(traced_modules_annotated)
 
-        class FunctionalTracer(pippy.fx.Tracer):
+        class FunctionalTracer(torch.fx.Tracer):
             def is_leaf_module(
                 self, m: torch.nn.Module, module_qualified_name: str
             ) -> bool:
@@ -1113,7 +1113,7 @@ class {test_classname}(torch.nn.Module):
                 leaves = set([torch.nn.BatchNorm2d])
                 return type(m) in leaves
 
-        traced_functionals = pippy.fx.GraphModule(
+        traced_functionals = torch.fx.GraphModule(
             m, FunctionalTracer().trace(m)
         )
 
@@ -1155,7 +1155,7 @@ class {test_classname}(torch.nn.Module):
         mm = MyModule()
         traced = symbolic_trace(mm)
 
-        def split_cb(node: pippy.fx.Node):
+        def split_cb(node: torch.fx.Node):
             if node.name == "a" or node.name == "b" or node.name == "add":
                 return 0
             else:
@@ -1189,7 +1189,7 @@ class {test_classname}(torch.nn.Module):
 
         part_idx = 0
 
-        def split_callback(n: pippy.fx.Node):
+        def split_callback(n: torch.fx.Node):
             nonlocal part_idx
             if (n.op, n.target) == ("call_module", "lin"):
                 part_idx += 1
@@ -1294,13 +1294,13 @@ class {test_classname}(torch.nn.Module):
 
     def test_merge_matmuls(self):
         """
-        A collection of test cases for pippy.fx.experimental.merge_matmul,
+        A collection of test cases for torch.fx.experimental.merge_matmul,
         a graph transformation that merges matrix multiplication operations.
         """
 
         # Utility function for counting matmuls for test assertions.
         def _count_matmuls(mod):
-            gm = pippy.fx.symbolic_trace(mod)
+            gm = torch.fx.symbolic_trace(mod)
 
             num_matmuls = 0
             for node in gm.graph.nodes:
@@ -1651,7 +1651,7 @@ class TestModule(torch.nn.Module):
             TestModule = g["TestModule"]
 
             m = TestModule()
-            traced = pippy.fx.symbolic_trace(m)
+            traced = torch.fx.symbolic_trace(m)
             ref_out = traced(*param_values)
 
             for node in traced.graph.nodes:

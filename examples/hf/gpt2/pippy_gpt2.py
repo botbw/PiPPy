@@ -8,7 +8,7 @@ from functools import reduce
 import torch
 from transformers import GPT2LMHeadModel, GPT2Config
 
-import pippy.fx
+import torch.fx
 from pippy import run_pippy
 from pippy.IR import MultiUseParameterConfig, Pipe, PipeSplitWrapper, annotate_split_points
 from pippy.PipelineDriver import PipelineDriverFillDrain, PipelineDriver1F1B, PipelineDriverInterleaved1F1B, \
@@ -27,7 +27,7 @@ schedules = {
     'Interleaved1F1B': PipelineDriverInterleaved1F1B,
 }
 
-pippy.fx.Tracer.proxy_buffer_attributes = True
+torch.fx.Tracer.proxy_buffer_attributes = True
 
 
 def get_number_of_params(model):

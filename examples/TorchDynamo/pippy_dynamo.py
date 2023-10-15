@@ -10,20 +10,20 @@ import torch.fx
 import torch._dynamo as dynamo
 
 import pippy
-import pippy.fx
+import torch.fx
 from pippy.IR import Pipe, pipe_split
 from pippy import run_pippy
 
 PROFILING_ENABLED = True
 
-pippy.fx.Tracer.proxy_buffer_attributes = True
+torch.fx.Tracer.proxy_buffer_attributes = True
 
 
 def inspect_split_module(
         pipe: Pipe,
         expected_stages: int = -1,
 ):
-    gm: pippy.fx.GraphModule = pipe.split_gm
+    gm: torch.fx.GraphModule = pipe.split_gm
     # Check returned number of stages
     nstages = len(list(gm.children()))
     if expected_stages > 0:

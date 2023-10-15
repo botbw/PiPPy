@@ -3,7 +3,7 @@ import argparse
 import os
 import unittest
 
-import pippy.fx
+import torch.fx
 
 import torch
 import torch.autograd.profiler_legacy
@@ -25,7 +25,7 @@ schedules = {
     "Interleaved1F1B": PipelineDriverInterleaved1F1B,
 }
 
-pippy.fx.Tracer.proxy_buffer_attributes = True
+torch.fx.Tracer.proxy_buffer_attributes = True
 
 
 def run_master(_, args):

@@ -4,7 +4,7 @@ import copy
 import os
 import unittest
 
-import pippy.fx
+import torch.fx
 
 import torch
 import torch.distributed.rpc as rpc
@@ -60,7 +60,7 @@ def set_grad_in_executor(executor, qualname, value):
     param.grad = value
 
 
-pippy.fx.Tracer.proxy_buffer_attributes = True
+torch.fx.Tracer.proxy_buffer_attributes = True
 
 
 def run_master(_, args):

@@ -35,7 +35,7 @@ import torch
 import torch.distributed.rpc as rpc
 import torch.multiprocessing as mp
 
-import pippy.fx
+import torch.fx
 
 
 def get_rank() -> int:
@@ -293,7 +293,7 @@ def flatten_args_detach(args):
     def dont_traverse_size(a):
         return type(a) != torch.Size
 
-    new_args = pippy.fx.node.map_aggregate(
+    new_args = torch.fx.node.map_aggregate(
         args, extract_tensor_args, dont_traverse_size
     )
 
@@ -311,7 +311,7 @@ def flatten_args(args):
     def dont_traverse_size(a):
         return type(a) != torch.Size
 
-    pippy.fx.node.map_aggregate(args, extract_tensor_args, dont_traverse_size)
+    torch.fx.node.map_aggregate(args, extract_tensor_args, dont_traverse_size)
 
     return flat_args
 

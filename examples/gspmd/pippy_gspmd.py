@@ -7,12 +7,12 @@ import torch
 import torch.autograd.profiler_legacy
 
 import pippy
-import pippy.fx
+import torch.fx
 from pippy import run_pippy
 from pippy.IR import pipe_split
 
 
-pippy.fx.Tracer.proxy_buffer_attributes = True
+torch.fx.Tracer.proxy_buffer_attributes = True
 
 d_hid = 512
 bs = 500

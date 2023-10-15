@@ -4,13 +4,13 @@ import os
 
 import torch
 import pippy
-import pippy.fx
+import torch.fx
 from pippy import run_pippy
 from pippy.hf import PiPPyHFTracer, inject_pipeline_forward
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
-pippy.fx.Tracer.proxy_buffer_attributes = True
+torch.fx.Tracer.proxy_buffer_attributes = True
 
 gigabyte_size = 1024 ** 3
 

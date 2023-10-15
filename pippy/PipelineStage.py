@@ -8,11 +8,11 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel
 
 import pippy
-import pippy.fx
+import torch.fx
 from pippy.backward import stage_backward, sync_barrier
 from pippy.debug import map_debug_info
 
-from pippy.fx.passes import shape_prop
+from torch.fx.passes import shape_prop
 from pippy.IR import Pipe
 from pippy.microbatch import merge_chunks, split_args_kwargs_into_chunks
 from pippy.utils import flatten_args
@@ -245,13 +245,13 @@ class PipelineStage(torch.nn.Module):
 
         # `args` is a Tuple, hence we will have:
         # Tuple[RecvInfo]
-        args_recv_info = pippy.fx.node.map_arg(
+        args_recv_info = torch.fx.node.map_arg(
             self.node.args, create_recv_tensor
         )
 
         # `kwargs` is a Dict, hence we will have:
         # Dict[keyword, RecvInfo]
-        kwargs_recv_info = pippy.fx.node.map_arg(
+        kwargs_recv_info = torch.fx.node.map_arg(
             self.node.kwargs, create_recv_tensor
         )
 
@@ -263,7 +263,7 @@ class PipelineStage(torch.nn.Module):
 
     def find_dst_rank(
         self,
-        user: pippy.fx.Node,
+        user: torch.fx.Node,
     ) -> Optional[int]:
         """
         Find the destination rank of a `user` node.
@@ -359,9 +359,9 @@ class PipelineStage(torch.nn.Module):
                 grad_send_info.append(None)
                 return None
 
-        pippy.fx.node.map_aggregate(args_recv_info, map_recv_to_send)
+        torch.fx.node.map_aggregate(args_recv_info, map_recv_to_send)
 
-        pippy.fx.node.map_aggregate(kwargs_recv_info, map_recv_to_send)
+        torch.fx.node.map_aggregate(kwargs_recv_info, map_recv_to_send)
 
         logging.info(
             f"[{self.group_rank}][{self.name}] "
@@ -424,7 +424,7 @@ class PipelineStage(torch.nn.Module):
             else:
                 return chunk_args_list.pop(0)  # type: ignore[has-type]
 
-        composite_args = pippy.fx.node.map_aggregate(
+        composite_args = torch.fx.node.map_aggregate(
             self.args_recv_info[chunk],
             recv_args,
         )
@@ -439,7 +439,7 @@ class PipelineStage(torch.nn.Module):
                 k = next(iter(chunk_kwargs))  # type: ignore[has-type]
                 return chunk_kwargs.pop(k)  # type: ignore[has-type]
 
-        composite_kwargs = pippy.fx.node.map_aggregate(
+        composite_kwargs = torch.fx.node.map_aggregate(
             self.kwargs_recv_info[chunk],
             recv_kwargs,
         )
@@ -488,7 +488,7 @@ class PipelineStage(torch.nn.Module):
         recv_grad = self.recv_tensor_fn(grad_recv_reqs)
 
         # Receive gradients
-        grads = pippy.fx.node.map_aggregate(
+        grads = torch.fx.node.map_aggregate(
             self.grad_recv_info[bwd_chunk],
             recv_grad,
         )

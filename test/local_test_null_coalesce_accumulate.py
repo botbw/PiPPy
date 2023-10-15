@@ -3,7 +3,7 @@ import argparse
 import os
 import unittest
 
-import pippy.fx
+import torch.fx
 
 import torch
 from pippy import run_pippy
@@ -27,7 +27,7 @@ schedules = {
     "1F1B": PipelineDriver1F1B,
 }
 
-pippy.fx.Tracer.proxy_buffer_attributes = True
+torch.fx.Tracer.proxy_buffer_attributes = True
 
 
 def run_master(_, args):

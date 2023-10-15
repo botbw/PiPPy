@@ -1,7 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates
 import logging
 
-import pippy.fx
+import torch.fx
 from pippy.IR import annotate_split_points, Pipe, PipeSplitWrapper
 
 logging.basicConfig(
@@ -113,7 +113,7 @@ model = GPT(mconf)
 model.eval()
 
 x = torch.tensor([[1, 2, 3, 4]], dtype=torch.long)
-stock_traced = pippy.fx.symbolic_trace(model, concrete_args={"targets": None})
+stock_traced = torch.fx.symbolic_trace(model, concrete_args={"targets": None})
 torch.testing.assert_close(stock_traced(x)[0], model(x)[0])
 
 # Specify split points

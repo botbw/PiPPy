@@ -6,7 +6,7 @@ import unittest
 import torch
 
 import pippy
-import pippy.fx
+import torch.fx
 from pippy.IR import pipe_split
 from pippy.compile import compile_stage
 
@@ -20,7 +20,7 @@ from torch.distributed.tensor.parallel import (
 )
 
 
-pippy.fx.Tracer.proxy_buffer_attributes = True
+torch.fx.Tracer.proxy_buffer_attributes = True
 
 
 class MLPModule(torch.nn.Module):

@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from typing import NamedTuple
 
-import pippy.fx
+import torch.fx
 import torch
 
 from pippy.IR import (
@@ -26,7 +26,7 @@ from pippy.microbatch import (
 )
 
 
-@pippy.fx.wrap
+@torch.fx.wrap
 def arange_wrapper(*args, **kwargs):
     return torch.arange(*args, **kwargs)
 
@@ -338,7 +338,7 @@ class TestIR(unittest.TestCase):
             torch.testing.assert_close(v_test, v_ref)
 
     def test_custom_tracer_serialization(self):
-        class CustomTracer(pippy.fx.Tracer):
+        class CustomTracer(torch.fx.Tracer):
             def trace(self, root, concrete_args=None):
                 rv = super().trace(root, concrete_args)
                 for node in rv.nodes:

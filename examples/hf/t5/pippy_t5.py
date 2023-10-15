@@ -7,7 +7,7 @@ import torch
 from transformers import T5ForConditionalGeneration, T5Config
 
 import pippy
-import pippy.fx
+import torch.fx
 import pippy.ModelSplit
 from pippy import run_pippy
 from pippy.IR import (
@@ -20,7 +20,7 @@ from pippy.hf import PiPPyHFTracer
 from pippy.visualizer import events_to_json
 
 
-pippy.fx.Tracer.proxy_buffer_attributes = True
+torch.fx.Tracer.proxy_buffer_attributes = True
 
 
 def print_submod_sizes(model_pipe):
