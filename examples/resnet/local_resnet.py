@@ -6,16 +6,17 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torchvision import datasets, transforms  # type: ignore
-from resnet import ResNet50
+from resnet import ResNet18
 from tqdm import tqdm  # type: ignore
 
 USE_TQDM = bool(int(os.getenv('USE_TQDM', '1')))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--max_epochs', type=int, default=10)
-    parser.add_argument('--batch_size', type=int, default=25)
+    parser.add_argument('--max_epochs', type=int, default=1)
+    parser.add_argument('--batch_size', type=int, default=16)
     args = parser.parse_args()
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
     chunks = 4
     batch_size = args.batch_size * chunks
@@ -34,10 +35,11 @@ if __name__ == "__main__":
     train_dataloader = torch.utils.data.DataLoader(train_data, batch_size=batch_size)
     valid_dataloader = torch.utils.data.DataLoader(valid_data, batch_size=batch_size)
 
-    model = ResNet50().to(device)
+    model = ResNet18().to(device)
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters())
+    # optimizer = optim.SGD(model.parameters(), lr=1e-3)
 
     loaders = {"train": train_dataloader, "valid": valid_dataloader}
 
@@ -46,7 +48,7 @@ if __name__ == "__main__":
         for k, dataloader in loaders.items():
             epoch_correct = 0
             epoch_all = 0
-            for i, (x_batch, y_batch) in enumerate(tqdm(dataloader) if USE_TQDM else dataloader):
+            for i, (x_batch, y_batch) in enumerate(tqdm(dataloader, dynamic_ncols=True) if USE_TQDM else dataloader):
                 x_batch = x_batch.to(device)
                 y_batch = y_batch.to(device)
                 if k == "train":

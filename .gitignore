@@ -8,3 +8,9 @@ dist
 **/*.json
 **/*.out
 **/.DS_STORE
+
+# setup files
+torchpippy.egg-info
+
+# dataset
+data

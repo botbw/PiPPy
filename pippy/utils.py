@@ -158,6 +158,9 @@ def run_pippy(run_func, args, *extra_args):
 
 
 def run_worker(rank, run_func, args, *extra_args):
+    from pippy.logging import setup_logger
+    setup_logger()
+    logging.debug(f"{rank}: log test")
     args.rank = rank
 
     os.environ["MASTER_ADDR"] = args.master_addr

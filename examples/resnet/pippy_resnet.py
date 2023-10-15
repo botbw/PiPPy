@@ -17,7 +17,8 @@ from pippy.PipelineDriver import PipelineDriverFillDrain, PipelineDriver1F1B, Pi
 from pippy.events import EventsContext
 from pippy.microbatch import sum_reducer, TensorChunkSpec
 from pippy.visualizer import events_to_json
-from resnet import ResNet50
+from resnet import ResNet18
+import random
 
 PROFILING_ENABLED = True
 CHECK_NUMERIC_EQUIVALENCE = True
@@ -43,6 +44,7 @@ def run_master(_, args):
     all_worker_ranks = list(range(1, 1 + number_of_workers))  # exclude master rank = 0
     chunks = len(all_worker_ranks)
     batch_size = args.batch_size * chunks
+    print(batch_size)
 
     transform = transforms.Compose([
         transforms.ToTensor(),
@@ -66,7 +68,7 @@ def run_master(_, args):
             # generating the backward pass
             return {"output": output, "loss": loss}
 
-    model = ResNet50()
+    model = ResNet18()
 
     annotate_split_points(model, {
         'layer1': PipeSplitWrapper.SplitPoint.END,
@@ -88,6 +90,7 @@ def run_master(_, args):
                                                                checkpoint=bool(args.checkpoint))
 
     optimizer = pipe_driver.instantiate_optimizer(optim.Adam, lr=1e-3, betas=(0.9, 0.999), eps=1e-8)
+    # optimizer = pipe_driver.instantiate_optimizer(optim.SGD, lr=1e-3)
 
     loaders = {
         "train": train_dataloader,
@@ -103,7 +106,7 @@ def run_master(_, args):
         for k, dataloader in loaders.items():
             epoch_correct = 0
             epoch_all = 0
-            for i, (x_batch, y_batch) in enumerate(tqdm(dataloader) if USE_TQDM else dataloader):
+            for i, (x_batch, y_batch) in enumerate(tqdm(dataloader, dynamic_ncols=True) if USE_TQDM else dataloader):
                 x_batch = x_batch.to(args.device)
                 y_batch = y_batch.to(args.device)
                 if k == "train":
@@ -144,10 +147,10 @@ if __name__ == "__main__":
     # parser.add_argument('--world_size', type=int, default=int(os.getenv("WORLD_SIZE", 5)))
     parser.add_argument('--rank', type=int, default=int(os.getenv("RANK", -1)))
     parser.add_argument('--master_addr', type=str, default=os.getenv('MASTER_ADDR', 'localhost'))
-    parser.add_argument('--master_port', type=str, default=os.getenv('MASTER_PORT', '29500'))
+    parser.add_argument('--master_port', type=str, default=os.getenv('MASTER_PORT', str(random.randint(29500, 29600))))
 
-    parser.add_argument('--max_epochs', type=int, default=10)
-    parser.add_argument('--batch_size', type=int, default=10)
+    parser.add_argument('--max_epochs', type=int, default=1)
+    parser.add_argument('--batch_size', type=int, default=16)
 
     parser.add_argument('-s', '--schedule', type=str, default=list(schedules.keys())[0], choices=schedules.keys())
     parser.add_argument('--replicate', type=int, default=int(os.getenv("REPLICATE", '0')))
@@ -158,4 +161,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.world_size = 5  # "This program requires exactly 4 workers + 1 master"
 
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
     run_pippy(run_master, args)
