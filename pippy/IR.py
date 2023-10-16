@@ -1052,22 +1052,22 @@ class Pipe(QualnameMapMixin, torch.nn.Module):
                     mod
                 )  # because further pipe building activities can modify mod
             graph = _pipeline_tracer.trace(mod, **kwargs)
-            if isinstance(graph, torch_fx.Graph):
-                # HACK to convert torch.fx.Graph to torch.fx.Graph
-                g_new = torch.fx.Graph()
-                val_map: Dict[torch.fx.Node, torch.fx.Node] = {}
-                out = g_new.graph_copy(graph, val_map, False)
-                g_new.output(out)
+            # if isinstance(graph, torch_fx.Graph):
+            #     # HACK to convert torch.fx.Graph to torch.fx.Graph
+            #     g_new = torch.fx.Graph()
+            #     val_map: Dict[torch.fx.Node, torch.fx.Node] = {}
+            #     out = g_new.graph_copy(graph, val_map, False)
+            #     g_new.output(out)
 
-                # `torch.fx.map_arg` doesn't work on torch.fx.Node instances;
-                # do it here
-                def remap_vals(n):
-                    return val_map[n]
+            #     # `torch.fx.map_arg` doesn't work on torch.fx.Node instances;
+            #     # do it here
+            #     def remap_vals(n):
+            #         return val_map[n]
 
-                for node in g_new.nodes:
-                    node.args = torch_fx.map_arg(node.args, remap_vals)
-                    node.kwargs = torch_fx.map_arg(node.kwargs, remap_vals)
-                graph = g_new
+            #     for node in g_new.nodes:
+            #         node.args = torch_fx.map_arg(node.args, remap_vals)
+            #         node.kwargs = torch_fx.map_arg(node.kwargs, remap_vals)
+            #     graph = g_new
 
             traced = torch.fx.GraphModule(mod, graph)
         finally:

@@ -290,11 +290,11 @@ def flatten_args_detach(args):
             flat_detached_args.append(a)
             return a
 
-    def dont_traverse_size(a):
-        return type(a) != torch.Size
+    # def dont_traverse_size(a):
+    #     return type(a) != torch.Size
 
     new_args = torch.fx.node.map_aggregate(
-        args, extract_tensor_args, dont_traverse_size
+        args, extract_tensor_args #, dont_traverse_size
     )
 
     return new_args, flat_detached_args

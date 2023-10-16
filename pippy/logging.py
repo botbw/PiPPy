@@ -19,7 +19,7 @@ def setup_logger():
 
     # 创建一个日志器
     logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.ERROR)
 
     # 创建一个流处理器，并为其添加彩色日志格式
     stream_handler = logging.StreamHandler()

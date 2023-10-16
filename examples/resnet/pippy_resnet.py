@@ -113,6 +113,7 @@ def run_master(_, args):
                     pipe_driver.train()
                     optimizer.zero_grad()
                     outp, _ = pipe_driver(x_batch, y_batch)
+                    assert not torch.isnan(outp).any() and not torch.isnan(_).any()
                     preds = outp.argmax(-1)
                     correct = (preds == y_batch).sum()
                     all = len(y_batch)
@@ -149,7 +150,7 @@ if __name__ == "__main__":
     parser.add_argument('--master_addr', type=str, default=os.getenv('MASTER_ADDR', 'localhost'))
     parser.add_argument('--master_port', type=str, default=os.getenv('MASTER_PORT', str(random.randint(29500, 29600))))
 
-    parser.add_argument('--max_epochs', type=int, default=1)
+    parser.add_argument('--max_epochs', type=int, default=10)
     parser.add_argument('--batch_size', type=int, default=16)
 
     parser.add_argument('-s', '--schedule', type=str, default=list(schedules.keys())[0], choices=schedules.keys())
