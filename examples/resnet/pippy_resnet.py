@@ -145,7 +145,7 @@ def run_master(_, args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # parser.add_argument('--world_size', type=int, default=int(os.getenv("WORLD_SIZE", 5)))
+    parser.add_argument('--world_size', type=int, default=int(os.getenv("WORLD_SIZE", 5)))
     parser.add_argument('--rank', type=int, default=int(os.getenv("RANK", -1)))
     parser.add_argument('--master_addr', type=str, default=os.getenv('MASTER_ADDR', 'localhost'))
     parser.add_argument('--master_port', type=str, default=os.getenv('MASTER_PORT', str(random.randint(29500, 29600))))
@@ -160,7 +160,7 @@ if __name__ == "__main__":
     parser.add_argument('--record_mem_dumps', type=int, default=0, choices=[0, 1])
     parser.add_argument('--checkpoint', type=int, default=0, choices=[0, 1])
     args = parser.parse_args()
-    args.world_size = 5  # "This program requires exactly 4 workers + 1 master"
+    # args.world_size = 5  # "This program requires exactly 4 workers + 1 master"
 
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     run_pippy(run_master, args)

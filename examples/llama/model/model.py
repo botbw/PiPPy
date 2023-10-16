@@ -1,7 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # This software may be used and distributed according to the terms of the GNU General Public License version 3.
 
-from typing import Optional, Tuple, Type
+from typing import Optional, Tuple
 from dataclasses import dataclass
 import math
 
@@ -10,12 +10,14 @@ from torch import nn
 import torch.nn.functional as F
 
 
+# adapt from https://huggingface.co/decapoda-research/llama-7b-hf/blob/main/config.json
 @dataclass
 class ModelArgs:
-    dim: int = 512
-    n_layers: int = 8
-    n_heads: int = 8
-    vocab_size: int = -1  # defined later by tokenizer
+    dim: int = 1024
+    n_layers: int = 16
+    n_heads: int = 16
+    # hidden/heads_dim == dim / n_heads
+    vocab_size: int = 32000  # defined later by tokenizer
     multiple_of: int = 256  # make SwiGLU hidden layer size multiple of large power of 2
     norm_eps: float = 1e-5
 
@@ -46,11 +48,13 @@ def precompute_freqs_cis(dim: int, end: int, theta: float = 10000.0):
 
 
 def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor):
-    ndim = x.ndim
-    assert 0 <= 1 < ndim
-    assert freqs_cis.shape == (x.shape[1], x.shape[-1])
-    shape = [d if i == 1 or i == ndim - 1 else 1 for i, d in enumerate(x.shape)]
-    return freqs_cis.view(*shape)
+    # ndim = x.ndim
+    # assert 0 <= 1 < ndim
+    # assert freqs_cis.shape == (x.shape[1], x.shape[-1])
+    # shape = [d if i == 1 or i == ndim - 1 else 1 for i, d in enumerate(x.shape)]
+    # return freqs_cis.view(shape)
+    return freqs_cis.view(1, x.shape[1], 1, x.shape[3])
+
 
 
 def apply_rotary_emb(
@@ -58,8 +62,8 @@ def apply_rotary_emb(
     xk: torch.Tensor,
     freqs_cis: torch.Tensor,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    xq_ = torch.view_as_complex(xq.float().reshape(*xq.shape[:-1], -1, 2))
-    xk_ = torch.view_as_complex(xk.float().reshape(*xk.shape[:-1], -1, 2))
+    xq_ = torch.view_as_complex(xq.float().reshape(xq.shape[0], xq.shape[1], xq.shape[2], -1, 2))
+    xk_ = torch.view_as_complex(xk.float().reshape(xk.shape[0], xk.shape[1], xk.shape[2], -1, 2))
     freqs_cis = reshape_for_broadcast(freqs_cis, xq_)
     xq_out = torch.view_as_real(xq_ * freqs_cis).flatten(3)
     xk_out = torch.view_as_real(xk_ * freqs_cis).flatten(3)
@@ -94,12 +98,12 @@ class Attention(nn.Module):
             bias=False,
         )
 
-        self.cache_k = torch.zeros(
-            (args.max_batch_size, args.max_seq_len, self.n_local_heads, self.head_dim)
-        ).cuda()
-        self.cache_v = torch.zeros(
-            (args.max_batch_size, args.max_seq_len, self.n_local_heads, self.head_dim)
-        ).cuda()
+        # self.cache_k = torch.zeros(
+        #     (args.max_batch_size, args.max_seq_len, self.n_local_heads, self.head_dim)
+        # ).cuda()
+        # self.cache_v = torch.zeros(
+        #     (args.max_batch_size, args.max_seq_len, self.n_local_heads, self.head_dim)
+        # ).cuda()
 
     def forward(
         self,
@@ -117,14 +121,14 @@ class Attention(nn.Module):
 
         xq, xk = apply_rotary_emb(xq, xk, freqs_cis=freqs_cis)
 
-        self.cache_k = self.cache_k.to(xq)
-        self.cache_v = self.cache_v.to(xq)
+        # self.cache_k = self.cache_k.to(xq)
+        # self.cache_v = self.cache_v.to(xq)
 
-        self.cache_k[:bsz, start_pos : start_pos + seqlen] = xk
-        self.cache_v[:bsz, start_pos : start_pos + seqlen] = xv
+        # self.cache_k[:bsz, start_pos : start_pos + seqlen] = xk
+        # self.cache_v[:bsz, start_pos : start_pos + seqlen] = xv
 
-        keys = self.cache_k[:bsz, : start_pos + seqlen]
-        values = self.cache_v[:bsz, : start_pos + seqlen]
+        keys = xk # self.cache_k[:bsz, : start_pos + seqlen]
+        values = xv # self.cache_v[:bsz, : start_pos + seqlen]
 
         xq = xq.transpose(1, 2)
         keys = keys.transpose(1, 2)
@@ -193,23 +197,6 @@ class TransformerBlock(nn.Module):
         out = h + self.feed_forward.forward(self.ffn_norm(h))
         return out
 
-
-def convert_linear_to_bnb(float_linear):
-    new_layer = InferenceQuantizedLinear(
-        float_linear.in_features,
-        float_linear.out_features,
-        bias=float_linear.bias is not None,
-    )
-    new_layer._parameters["weight"] = bnb.nn.Int8Params(
-        float_linear.weight.data.cpu(),
-        requires_grad=False,
-        has_fp16_weights=False,
-    )
-    if float_linear.bias is not None:
-        new_layer._parameters["bias"] = float_linear.bias
-    return new_layer
-
-
 class Transformer(nn.Module):
     def __init__(self, params: ModelArgs):
         super().__init__()
@@ -230,9 +217,8 @@ class Transformer(nn.Module):
         self.freqs_cis = precompute_freqs_cis(
             self.params.dim // self.params.n_heads, self.params.max_seq_len * 2
         )
-
-    @torch.inference_mode()
-    def forward(self, tokens: torch.Tensor, start_pos: int):
+        
+    def pre_forward(self, tokens: torch.Tensor, start_pos: int):
         _bsz, seqlen = tokens.shape
         h = self.tok_embeddings(tokens)
         self.freqs_cis = self.freqs_cis.to(h.device)
@@ -244,7 +230,9 @@ class Transformer(nn.Module):
                 (1, 1, seqlen, seqlen), float("-inf"), device=tokens.device
             )
             mask = torch.triu(mask, diagonal=start_pos + 1).type_as(h)
+        return h, freqs_cis, mask
 
+    def forward(self, h, start_pos, freqs_cis, mask):
         for layer in self.layers:
             h = h.to(layer.parameters().__next__().device)
             h = layer(h, start_pos, freqs_cis, mask)

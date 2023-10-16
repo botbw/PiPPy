@@ -49,7 +49,8 @@ requirements = [
     "torchvision",
     "tqdm",
     "packaging",
-    "colorlog"
+    "colorlog",
+    "sentencepiece"
 ]
 
 extras: Dict = {}
