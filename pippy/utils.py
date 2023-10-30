@@ -311,7 +311,7 @@ def flatten_args(args):
     def dont_traverse_size(a):
         return type(a) != torch.Size
 
-    torch.fx.node.map_aggregate(args, extract_tensor_args, dont_traverse_size)
+    torch.fx.node.map_aggregate(args, extract_tensor_args) # , dont_traverse_size)
 
     return flat_args
 

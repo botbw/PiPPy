@@ -423,14 +423,14 @@ class RankWorker(EventRecorder):
                         a.requires_grad_(True)
                     return a
 
-                def dont_traverse_size(a):
-                    return type(a) != torch.Size
+                # def dont_traverse_size(a):
+                #     return type(a) != torch.Size
 
                 if no_grad:
                     with torch.no_grad():
                         out_val = forward_maybe_with_ddp(args, kwargs)
                         out_val = torch.fx.node.map_aggregate(
-                            out_val, set_requires_grad, dont_traverse_size
+                            out_val, set_requires_grad, # dont_traverse_size
                         )
                 else:
                     with torch.enable_grad():
