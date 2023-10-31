@@ -613,9 +613,9 @@ class Pipe(QualnameMapMixin, torch.nn.Module):
                     new_key = k[len(mod_prefix) :]
                     mod_qualname_mapping.setdefault(new_key, v)
             # Add a remap mixin to submodule instance
-            mod.__class__ = type(
-                "PipeStageModule", (QualnameMapMixin, mod.__class__), {}
-            )
+            # mod.__class__ = type(
+            #     "PipeStageModule", (QualnameMapMixin, mod.__class__), {}
+            # )
             setattr(mod, "new_to_old_qualname_mapping", mod_qualname_mapping)
 
         def throw(self, *args, **kwargs):
