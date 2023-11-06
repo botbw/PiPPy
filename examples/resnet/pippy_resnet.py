@@ -1,6 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates
 import argparse
 import os
+import logging
 from functools import reduce
 
 import torch
@@ -17,6 +18,7 @@ from pippy.PipelineDriver import PipelineDriverFillDrain, PipelineDriver1F1B, Pi
 from pippy.events import EventsContext
 from pippy.microbatch import sum_reducer, TensorChunkSpec
 from pippy.visualizer import events_to_json
+from pippy.logging import setup_logger
 from resnet import ResNet18
 import random
 
@@ -37,7 +39,7 @@ def run_master(_, args):
 
     number_of_workers = 2
     all_worker_ranks = list(range(1, 1 + number_of_workers))  # exclude master rank = 0
-    chunks = len(all_worker_ranks)
+    chunks = 1
     batch_size = args.batch_size * chunks
 
     model = resnet18()
@@ -85,7 +87,7 @@ def run_master(_, args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--world_size', type=int, default=int(os.getenv("WORLD_SIZE", 3)))
-    parser.add_argument('--rank', type=int, default=int(os.getenv("RANK", -1)))
+    parser.add_argument('--local-rank', type=int, required=True)
     parser.add_argument('--master_addr', type=str, default=os.getenv('MASTER_ADDR', 'localhost'))
     parser.add_argument('--master_port', type=str, default=os.getenv('MASTER_PORT', str(random.randint(29500, 29600))))
 
@@ -99,5 +101,8 @@ if __name__ == "__main__":
     parser.add_argument('--checkpoint', type=int, default=0, choices=[0, 1])
     args = parser.parse_args()
 
+    args.rank = args.local_rank
+
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    setup_logger(logging.DEBUG)
     run_pippy(run_master, args)

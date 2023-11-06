@@ -1,7 +1,7 @@
 import logging
 import colorlog
 
-def setup_logger():
+def setup_logger(log_level=logging.ERROR):
     # colored log
     log_format = (
         "[%(log_color)s%(levelname)s%(reset)s] "
@@ -19,7 +19,7 @@ def setup_logger():
 
     # 创建一个日志器
     logger = logging.getLogger()
-    logger.setLevel(logging.ERROR)
+    logger.setLevel(log_level)
 
     # 创建一个流处理器，并为其添加彩色日志格式
     stream_handler = logging.StreamHandler()
